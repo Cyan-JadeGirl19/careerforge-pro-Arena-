@@ -20,10 +20,55 @@ class Base(DeclarativeBase):
 
 
 def init_db() -> None:
-    """Create tables for dev/test. Production should use migrations."""
+    """Create tables for dev/test, then apply safe additive migrations.
+
+    ``create_all`` creates missing tables but never adds columns to
+    existing ones, so a dev database created before a schema change
+    would crash the app. ``ensure_schema`` closes that gap by adding
+    any missing (nullable) columns — non-destructive, preserves data.
+    Production will use a proper migration tool (Alembic) before launch.
+    """
     from . import models  # noqa: F401  (registers mappers)
 
     Base.metadata.create_all(engine)
+    ensure_schema()
+
+
+def ensure_schema(target_engine=None) -> None:
+    """Add any columns missing from existing tables (SQLite/Postgres).
+
+    Only additive ``ADD COLUMN`` statements are used, and only for
+    columns declared nullable or with a default, so existing rows are
+    never altered or lost.
+    """
+    from sqlalchemy import inspect, text
+
+    target_engine = target_engine or engine
+    inspector = inspect(target_engine)
+    is_sqlite = target_engine.dialect.name == "sqlite"
+    with target_engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if not inspector.has_table(table.name):
+                continue
+            existing = {c["name"] for c in inspector.get_columns(table.name)}
+            for col in table.columns:
+                if col.name in existing:
+                    continue
+                if not col.nullable and col.default is None:
+                    # Never add a NOT NULL column without a default.
+                    continue
+                col_type = col.type.compile(target_engine.dialect)
+                if is_sqlite:
+                    conn.execute(
+                        text(f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {col_type} NULL')
+                    )
+                else:
+                    conn.execute(
+                        text(
+                            f'ALTER TABLE "{table.name}" ADD COLUMN IF NOT EXISTS '
+                            f'"{col.name}" {col_type} NULL'
+                        )
+                    )
 
 
 def get_db() -> Generator[Session, None, None]:
