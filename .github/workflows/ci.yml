@@ -25,12 +25,25 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Run tests
         run: python -m pytest -q
-      - name: Export OpenAPI contract
-        run: python scripts/export_openapi.py
       - name: Verify committed contract is current
+        working-directory: .
         run: |
-          git diff --exit-code docs/openapi/v1.json || \
-            { echo "docs/openapi/v1.json is stale. Run: python apps/api/scripts/export_openapi.py and commit it."; exit 1; }
+          python - <<'EOF'
+          import json, subprocess, sys
+          sys.path.insert(0, "apps/api")
+          from app.main import app
+          fresh = app.openapi()
+          committed_raw = subprocess.run(
+              ["git", "show", "HEAD:docs/openapi/v1.json"],
+              capture_output=True, text=True, check=True,
+          ).stdout
+          committed = json.loads(committed_raw)
+          if fresh != committed:
+              print("ERROR: docs/openapi/v1.json is stale.")
+              print("Run: python apps/api/scripts/export_openapi.py and commit the result.")
+              sys.exit(1)
+          print("Contract is current.")
+          EOF
 
   web:
     name: Web typecheck + build (Next.js)
