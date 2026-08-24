@@ -17,7 +17,7 @@ DATE_RANGE_RE = re.compile(
     r"\b((?:19|20)\d{2})\s*(?:-|–|—|to)\s*((?:19|20)\d{2}|present|current|now|today)\b",
     re.IGNORECASE,
 )
-YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
+YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
 
 SECTION_KEYWORDS = {
     "summary": (

@@ -1136,10 +1136,777 @@
           }
         }
       }
+    },
+    "/api/v1/profiles/{profile_id}/roles/recommend": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Recommend Roles",
+        "operationId": "recommend_roles_api_v1_profiles__profile_id__roles_recommend_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoleRecommendationOut"
+                  },
+                  "title": "Response Recommend Roles Api V1 Profiles  Profile Id  Roles Recommend Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profiles/{profile_id}/applications": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Create Application",
+        "operationId": "create_application_api_v1_profiles__profile_id__applications_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "List Applications",
+        "operationId": "list_applications_api_v1_profiles__profile_id__applications_get",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApplicationOut"
+                  },
+                  "title": "Response List Applications Api V1 Profiles  Profile Id  Applications Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/applications/{app_id}": {
+      "get": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Get Application",
+        "operationId": "get_application_api_v1_applications__app_id__get",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/applications/{app_id}/status": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Update Status",
+        "operationId": "update_status_api_v1_applications__app_id__status_post",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationStatusUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/applications/{app_id}/tailor": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Tailor Application",
+        "operationId": "tailor_application_api_v1_applications__app_id__tailor_post",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Tailor Application Api V1 Applications  App Id  Tailor Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/applications/{app_id}/cover-letter": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Create Cover Letter",
+        "operationId": "create_cover_letter_api_v1_applications__app_id__cover_letter_post",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CoverLetterCreate"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverLetterOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/applications/{app_id}/videos": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Create Video Response",
+        "operationId": "create_video_response_api_v1_applications__app_id__videos_post",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VideoCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/videos/{video_id}/regenerate": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Regenerate Script",
+        "description": "Re-run the script with new instructions; keeps version history.",
+        "operationId": "regenerate_script_api_v1_videos__video_id__regenerate_post",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VideoCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/videos/{video_id}/media": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Update Video Media",
+        "description": "Client reports the recording state after upload (media storage lands with the studio UI).",
+        "operationId": "update_video_media_api_v1_videos__video_id__media_post",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VideoMediaUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profiles/{profile_id}/auto-pipeline": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Auto Pipeline",
+        "description": "'Upload your CV and the program does the rest.'\n\nFor each job: pick the best master, tailor a job-specific CV, draft a\nhuman-sounding cover letter, and prepare a video-response script\n(when video consent exists). Everything lands as reviewable\napplications - nothing is sent or submitted.",
+        "operationId": "auto_pipeline_api_v1_profiles__profile_id__auto_pipeline_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoPipelineRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoPipelineOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "ApplicationCreate": {
+        "properties": {
+          "jd_id": {
+            "type": "string",
+            "title": "Jd Id"
+          },
+          "cv_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cv Version Id"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "jd_id"
+        ],
+        "title": "ApplicationCreate"
+      },
+      "ApplicationOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "profile_id": {
+            "type": "string",
+            "title": "Profile Id"
+          },
+          "jd_title": {
+            "type": "string",
+            "title": "Jd Title"
+          },
+          "jd_company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jd Company"
+          },
+          "cv_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cv Version Id"
+          },
+          "tailored_cv_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tailored Cv Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "letter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoverLetterOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "videos": {
+            "items": {
+              "$ref": "#/components/schemas/VideoOut"
+            },
+            "type": "array",
+            "title": "Videos"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "profile_id",
+          "jd_title",
+          "jd_company",
+          "cv_version_id",
+          "tailored_cv_id",
+          "status",
+          "notes",
+          "letter",
+          "videos",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ApplicationOut"
+      },
+      "ApplicationStatusUpdate": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "pattern": "^(saved|ready|applied|phone_screen|interview|offer|rejected|archived)$",
+            "title": "Status"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "ApplicationStatusUpdate"
+      },
+      "AutoPipelineOut": {
+        "properties": {
+          "applications": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationOut"
+            },
+            "type": "array",
+            "title": "Applications"
+          },
+          "skipped": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "applications",
+          "skipped"
+        ],
+        "title": "AutoPipelineOut"
+      },
+      "AutoPipelineRequest": {
+        "properties": {
+          "cv_id": {
+            "type": "string",
+            "title": "Cv Id"
+          },
+          "jd_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Jd Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cv_id",
+          "jd_ids"
+        ],
+        "title": "AutoPipelineRequest"
+      },
       "Body_upload_cv_api_v1_profiles__profile_id__cvs_upload_post": {
         "properties": {
           "file": {
@@ -1297,6 +2064,60 @@
           "created_at"
         ],
         "title": "ConsentOut"
+      },
+      "CoverLetterCreate": {
+        "properties": {
+          "tone": {
+            "type": "string",
+            "pattern": "^(direct|warm|formal)$",
+            "title": "Tone",
+            "default": "direct"
+          }
+        },
+        "type": "object",
+        "title": "CoverLetterCreate"
+      },
+      "CoverLetterOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "application_id": {
+            "type": "string",
+            "title": "Application Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "tone": {
+            "type": "string",
+            "title": "Tone"
+          },
+          "quality_issues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Quality Issues"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "application_id",
+          "text",
+          "tone",
+          "quality_issues",
+          "created_at"
+        ],
+        "title": "CoverLetterOut"
       },
       "CvAnalysisOut": {
         "properties": {
@@ -1987,6 +2808,45 @@
         "type": "object",
         "title": "ProfileUpdate"
       },
+      "RoleRecommendationOut": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "match_pct": {
+            "type": "number",
+            "title": "Match Pct"
+          },
+          "matched": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Matched"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "match_pct",
+          "matched",
+          "missing",
+          "reason"
+        ],
+        "title": "RoleRecommendationOut"
+      },
       "TailorRequest": {
         "properties": {
           "jd_id": {
@@ -2090,6 +2950,184 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VideoCreate": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Question"
+          },
+          "key_points": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Key Points"
+          },
+          "exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Exclusions"
+          },
+          "tone": {
+            "type": "string",
+            "pattern": "^(natural|formal|warm|direct)$",
+            "title": "Tone",
+            "default": "natural"
+          },
+          "target_seconds": {
+            "type": "integer",
+            "enum": [
+              30,
+              60,
+              90,
+              120,
+              180
+            ],
+            "title": "Target Seconds",
+            "default": 60
+          },
+          "mode": {
+            "type": "string",
+            "pattern": "^(recording|enhance|ai_assisted)$",
+            "title": "Mode",
+            "default": "recording"
+          },
+          "ai_disclosed": {
+            "type": "boolean",
+            "title": "Ai Disclosed",
+            "default": false
+          },
+          "delete_media_after_export": {
+            "type": "boolean",
+            "title": "Delete Media After Export",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "VideoCreate"
+      },
+      "VideoMediaUpdate": {
+        "properties": {
+          "media_status": {
+            "type": "string",
+            "pattern": "^(uploaded|ready)$",
+            "title": "Media Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "media_status"
+        ],
+        "title": "VideoMediaUpdate"
+      },
+      "VideoOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "application_id": {
+            "type": "string",
+            "title": "Application Id"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "key_points": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Points"
+          },
+          "exclusions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclusions"
+          },
+          "tone": {
+            "type": "string",
+            "title": "Tone"
+          },
+          "target_seconds": {
+            "type": "integer",
+            "title": "Target Seconds"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "script_text": {
+            "type": "string",
+            "title": "Script Text"
+          },
+          "script_version": {
+            "type": "integer",
+            "title": "Script Version"
+          },
+          "media_status": {
+            "type": "string",
+            "title": "Media Status"
+          },
+          "ai_disclosed": {
+            "type": "boolean",
+            "title": "Ai Disclosed"
+          },
+          "delete_media_after_export": {
+            "type": "boolean",
+            "title": "Delete Media After Export"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "application_id",
+          "question",
+          "key_points",
+          "exclusions",
+          "tone",
+          "target_seconds",
+          "mode",
+          "script_text",
+          "script_version",
+          "media_status",
+          "ai_disclosed",
+          "delete_media_after_export",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "VideoOut"
       }
     }
   }

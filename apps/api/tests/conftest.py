@@ -39,8 +39,12 @@ def profile_id(client) -> str:
 
 @pytest.fixture()
 def consented_profile(client, profile_id) -> str:
-    """Profile with the consents needed for CV work + job matching."""
-    for item in ("profile_processing", "job_matching"):
+    """Profile with the core consents granted (CV, jobs, video recording).
+
+    Deliberately does NOT grant media_use, so AI-assisted media paths
+    remain separately gated.
+    """
+    for item in ("profile_processing", "job_matching", "video_recording"):
         res = client.post(
             f"{API}/profiles/{profile_id}/consents",
             json={"item": item, "granted": True},
@@ -53,14 +57,18 @@ SAMPLE_CV = """\
 Thando Ndlovu
 thando@example.com
 +27 82 123 4567
+Johannesburg, South Africa
 
 Summary
 Customer operations professional with 6 years in remote SaaS support.
 
 Experience
+Support Team Lead, Luno (2022 - present)
 - Led a remote team of 4 support agents; raised CSAT from 82% to 91%
 - Handled 40+ tickets per day for SaaS customers across 3 time zones
 - Built a knowledge base that cut repeat tickets by 22%
+Support Agent, PayFast (2019 - 2022)
+- Resolved 25+ customer issues daily while meeting SLA targets
 
 Education
 BCom, University of Pretoria

@@ -123,7 +123,7 @@ STOPWORDS = {
 
 
 def _year_values(text: str) -> list[int]:
-    return [int(y) for y in re.findall(r"\b(19|20)\d{2}\b", text)]
+    return [int(y) for y in re.findall(r"\b(?:19|20)\d{2}\b", text)]
 
 
 def _years_of_experience(parsed: ParsedCv) -> int | None:

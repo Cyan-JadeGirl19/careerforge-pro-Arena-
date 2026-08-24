@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.4.0 - 2026-08-24
+
+Autonomous studio (the "upload your CV, the program does the rest" layer):
+
+- Target-role recommendation: top-3 roles from the candidate's own skill
+  overlap, with matched/missing evidence and reasons
+- Application packages: one record per job tying together the tailored
+  CV, cover letter, video responses, and tracker status
+  (saved → ready → applied → phone screen → interview → offer →
+  rejected → archived)
+- Human-authentic cover letters: factual only, one concrete JD
+  requirement quoted, no banned AI-style phrasing (checked), unique per
+  job, acronym-aware
+- Voice/Video Application Studio (server): question + instructions
+  (key points, exclusions, tone) + length 30/60/90/120/180s → natural
+  spoken script from the candidate's real CV + JD; per-question
+  responses with version history; consent-gated (video_recording,
+  media_use for AI-assisted modes); scripts are never padded with
+  invented content
+- Auto-pipeline endpoint: CV + job list → best-master selection,
+  tailored CV, cover letter, video script per job in one call,
+  surfaced as a review queue. Nothing is sent or submitted.
+- Regression fixes: years-of-experience regex (capture-group bug that
+  produced "40 years"), acronym preservation in speech/letters,
+  requirement-phrase extraction from JDs
+- 52 API tests passing; OpenAPI contract re-exported
+
 ## 0.3.0 - 2026-08-24
 
 Document engine (CV core, continued):

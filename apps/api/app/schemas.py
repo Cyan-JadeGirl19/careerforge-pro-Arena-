@@ -6,6 +6,7 @@ mirrored in TypeScript at ``packages/contracts/types.ts``.
 """
 from datetime import datetime
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -184,6 +185,98 @@ class CvAnalysisOut(BaseModel):
     note: str = (
         "Transparent checks only. This is not a vendor ATS pass-rate score."
     )
+
+
+class RoleRecommendationOut(BaseModel):
+    role: str
+    match_pct: float
+    matched: list[str]
+    missing: list[str]
+    reason: str
+
+
+class ApplicationCreate(BaseModel):
+    jd_id: str
+    cv_version_id: str | None = None
+    notes: str | None = Field(default=None, max_length=4000)
+
+
+class CoverLetterCreate(BaseModel):
+    tone: str = Field(default="direct", pattern="^(direct|warm|formal)$")
+
+
+class CoverLetterOut(BaseModel):
+    id: str
+    application_id: str
+    text: str
+    tone: str
+    quality_issues: list[str]
+    created_at: datetime
+
+
+class VideoCreate(BaseModel):
+    question: str = Field(min_length=3, max_length=2000)
+    key_points: list[str] = Field(default_factory=list, max_length=10)
+    exclusions: list[str] = Field(default_factory=list, max_length=10)
+    tone: str = Field(default="natural", pattern="^(natural|formal|warm|direct)$")
+    target_seconds: Literal[30, 60, 90, 120, 180] = 60
+    mode: str = Field(default="recording", pattern="^(recording|enhance|ai_assisted)$")
+    ai_disclosed: bool = False
+    delete_media_after_export: bool = True
+
+
+class VideoOut(BaseModel):
+    id: str
+    application_id: str
+    question: str
+    key_points: str | None
+    exclusions: str | None
+    tone: str
+    target_seconds: int
+    mode: str
+    script_text: str
+    script_version: int
+    media_status: str
+    ai_disclosed: bool
+    delete_media_after_export: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class VideoMediaUpdate(BaseModel):
+    media_status: str = Field(pattern="^(uploaded|ready)$")
+
+
+class ApplicationStatusUpdate(BaseModel):
+    status: str = Field(
+        pattern="^(saved|ready|applied|phone_screen|interview|offer|rejected|archived)$"
+    )
+    notes: str | None = Field(default=None, max_length=4000)
+
+
+class ApplicationOut(BaseModel):
+    id: str
+    profile_id: str
+    jd_title: str
+    jd_company: str | None
+    cv_version_id: str | None
+    tailored_cv_id: str | None
+    status: str
+    notes: str | None
+    letter: CoverLetterOut | None
+    videos: list[VideoOut]
+    created_at: datetime
+    updated_at: datetime
+
+
+class AutoPipelineRequest(BaseModel):
+    cv_id: str
+    jd_ids: list[str] = Field(min_length=1, max_length=10)
+
+
+class AutoPipelineOut(BaseModel):
+    applications: list[ApplicationOut]
+    skipped: list[dict]
 
 
 class HealthOut(BaseModel):

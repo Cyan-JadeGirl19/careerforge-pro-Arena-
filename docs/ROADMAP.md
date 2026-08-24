@@ -1,5 +1,18 @@
 # CareerForge Pro roadmap
 
+## Product north star (user-confirmed 2026-08-24)
+
+The goal is **qualified interview conversion for candidates who have been
+unemployed for six months or more** — not volume of CVs sent. The system is
+an autonomous career agent: the candidate uploads their CV and the program
+does the rest (analysis, target roles, three masters, job matching, per-job
+CV, cover letter, voice/video responses, outreach drafts, tracking,
+follow-ups). Sensitive actions surface in a single approval queue.
+
+**The Voice/Video Application Studio is a main feature** (many applications
+request recorded responses), not a later-phase add-on. Video responses up to
+3 minutes.
+
 ## Phase 1 — Stable CV-first core
 
 - Candidate profile and consent

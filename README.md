@@ -87,6 +87,18 @@ Current v1 endpoints:
 - `GET /api/v1/tailored/{id}`, `GET /api/v1/tailored/{id}/export`
 - Exports: `docx`, `pdf`, `txt`, `json` — single-column, parser-safe
 
+Autonomous studio (upload CV → program does the rest):
+
+- `POST /api/v1/profiles/{id}/roles/recommend` → top-3 target roles
+- `POST /api/v1/profiles/{id}/applications` → application package (auto-selects best CV version)
+- `GET /api/v1/profiles/{id}/applications`, `GET /api/v1/applications/{id}`
+- `POST /api/v1/applications/{id}/tailor` → job-specific CV + coverage report
+- `POST /api/v1/applications/{id}/cover-letter` → human-authentic letter
+- `POST /api/v1/applications/{id}/videos` → voice/video script (30–180s)
+- `POST /api/v1/videos/{id}/regenerate`, `POST /api/v1/videos/{id}/media`
+- `POST /api/v1/profiles/{id}/auto-pipeline` → full review queue in one call
+- `POST /api/v1/applications/{id}/status` → tracker stage updates
+
 Sensitive operations return `409 CONSENT_REQUIRED` until the candidate has
 granted the matching consent (see `ConsentItem` in the contract).
 

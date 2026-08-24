@@ -121,6 +121,108 @@ class CvVersion(Base):
     )
 
 
+class Application(Base):
+    """One job application package: tailored CV + letter + video + status.
+
+    Statuses (agreed tracker): saved, ready, applied, phone_screen,
+    interview, offer, rejected, archived.
+    """
+
+    __tablename__ = "applications"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    profile_id: Mapped[str] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    jd_id: Mapped[str] = mapped_column(
+        ForeignKey("job_descriptions.id", ondelete="CASCADE"), index=True
+    )
+    cv_version_id: Mapped[str | None] = mapped_column(
+        ForeignKey("cv_versions.id", ondelete="SET NULL"), nullable=True
+    )
+    tailored_cv_id: Mapped[str | None] = mapped_column(
+        ForeignKey("tailored_cvs.id", ondelete="SET NULL"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="saved", index=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    jd: Mapped["JobDescription"] = relationship()
+    cv_version: Mapped["CvVersion | None"] = relationship()
+    tailored_cv: Mapped["TailoredCv | None"] = relationship()
+    letter: Mapped["CoverLetter | None"] = relationship(
+        back_populates="application", uselist=False, cascade="all, delete-orphan"
+    )
+    videos: Mapped[list["VideoResponse"]] = relationship(
+        back_populates="application", cascade="all, delete-orphan"
+    )
+
+
+class CoverLetter(Base):
+    __tablename__ = "cover_letters"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    application_id: Mapped[str] = mapped_column(
+        ForeignKey("applications.id", ondelete="CASCADE"), index=True
+    )
+    profile_id: Mapped[str] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    text: Mapped[str] = mapped_column(Text)
+    tone: Mapped[str] = mapped_column(String(20), default="direct")
+    quality_issues: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+    application: Mapped["Application"] = relationship(back_populates="letter")
+
+
+class VideoResponse(Base):
+    """A recorded/produced response to one employer question.
+
+    One application can hold many (each question its own response +
+    version history). Media stays private; consent flags record what
+    the candidate approved.
+    """
+
+    __tablename__ = "video_responses"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    application_id: Mapped[str] = mapped_column(
+        ForeignKey("applications.id", ondelete="CASCADE"), index=True
+    )
+    profile_id: Mapped[str] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    question: Mapped[str] = mapped_column(Text)
+    key_points: Mapped[str | None] = mapped_column(Text, nullable=True)
+    exclusions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tone: Mapped[str] = mapped_column(String(20), default="natural")
+    target_seconds: Mapped[int] = mapped_column(Integer, default=60)
+    mode: Mapped[str] = mapped_column(String(20), default="recording")
+    # recording | enhance | ai_assisted
+    script_text: Mapped[str] = mapped_column(Text, default="")
+    script_version: Mapped[int] = mapped_column(Integer, default=1)
+    media_status: Mapped[str] = mapped_column(String(20), default="none")
+    # none | uploaded | ready
+    ai_disclosed: Mapped[bool] = mapped_column(Boolean, default=False)
+    delete_media_after_export: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    application: Mapped["Application"] = relationship(back_populates="videos")
+
+
 class JobDescription(Base):
     __tablename__ = "job_descriptions"
 

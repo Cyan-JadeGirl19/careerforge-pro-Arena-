@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api.v1 import consents, cvs, documents, health, profiles
+from .api.v1 import consents, cvs, documents, health, profiles, studio
 from .config import APP_VERSION, get_settings
 from .db import init_db
 
@@ -42,6 +42,7 @@ def create_app() -> FastAPI:
     api.include_router(consents.router)
     api.include_router(cvs.router)
     api.include_router(documents.router)
+    api.include_router(studio.router)
     app.include_router(api)
     return app
 
