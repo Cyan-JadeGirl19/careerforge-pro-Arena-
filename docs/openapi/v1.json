@@ -3075,6 +3075,241 @@
           }
         }
       }
+    },
+    "/api/v1/profiles/{profile_id}/followups": {
+      "get": {
+        "tags": [
+          "followups"
+        ],
+        "summary": "Followups List",
+        "operationId": "followups_list_api_v1_profiles__profile_id__followups_get",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FollowUpOut"
+                  },
+                  "title": "Response Followups List Api V1 Profiles  Profile Id  Followups Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/applications/{app_id}/followups": {
+      "post": {
+        "tags": [
+          "followups"
+        ],
+        "summary": "Followup Create",
+        "operationId": "followup_create_api_v1_applications__app_id__followups_post",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FollowUpCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowUpOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/followups/{followup_id}": {
+      "patch": {
+        "tags": [
+          "followups"
+        ],
+        "summary": "Followup Update",
+        "operationId": "followup_update_api_v1_followups__followup_id__patch",
+        "parameters": [
+          {
+            "name": "followup_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Followup Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FollowUpStatusIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowUpOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "followups"
+        ],
+        "summary": "Followup Delete",
+        "operationId": "followup_delete_api_v1_followups__followup_id__delete",
+        "parameters": [
+          {
+            "name": "followup_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Followup Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/interview/generate": {
+      "post": {
+        "tags": [
+          "interview"
+        ],
+        "summary": "Interview Generate",
+        "operationId": "interview_generate_api_v1_interview_generate_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewGenerateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3898,6 +4133,160 @@
         ],
         "title": "CvVersionOut"
       },
+      "FollowUpCreate": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "pattern": "^(post_application|post_interview|custom)$",
+            "title": "Kind",
+            "default": "custom"
+          },
+          "due_days": {
+            "type": "integer",
+            "maximum": 90.0,
+            "minimum": 0.0,
+            "title": "Due Days",
+            "default": 5
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "FollowUpCreate"
+      },
+      "FollowUpOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "profile_id": {
+            "type": "string",
+            "title": "Profile Id"
+          },
+          "application_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Due At"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "draft_text": {
+            "type": "string",
+            "title": "Draft Text"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "application_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Title"
+          },
+          "application_company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Company"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "profile_id",
+          "application_id",
+          "kind",
+          "due_at",
+          "status",
+          "draft_text",
+          "notes"
+        ],
+        "title": "FollowUpOut"
+      },
+      "FollowUpStatusIn": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "pattern": "^(sent|skipped)$",
+            "title": "Status"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "draft_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draft Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "FollowUpStatusIn"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -3938,6 +4327,101 @@
           "database"
         ],
         "title": "HealthOut"
+      },
+      "InterviewGenerateIn": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 2,
+            "title": "Role"
+          },
+          "jd_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jd Id"
+          },
+          "jd_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jd Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "title": "InterviewGenerateIn"
+      },
+      "InterviewQuestionOut": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "prepared_answer": {
+            "type": "string",
+            "title": "Prepared Answer"
+          },
+          "evidence_used": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Used"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "question",
+          "prepared_answer",
+          "evidence_used"
+        ],
+        "title": "InterviewQuestionOut"
+      },
+      "InterviewSessionOut": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/InterviewQuestionOut"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "questions",
+          "note"
+        ],
+        "title": "InterviewSessionOut"
       },
       "JobDescriptionCreate": {
         "properties": {

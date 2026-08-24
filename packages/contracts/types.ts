@@ -380,3 +380,33 @@ export interface ApplicationReference {
   approved: boolean;
   missing: string[];
 }
+
+// ---- follow-ups ----
+
+export interface FollowUp {
+  id: string;
+  profile_id: string;
+  application_id: string | null;
+  kind: string;
+  due_at: string;
+  status: "scheduled" | "sent" | "skipped";
+  draft_text: string;
+  notes: string | null;
+  application_title: string | null;
+  application_company: string | null;
+}
+
+// ---- interview coach ----
+
+export interface InterviewQuestion {
+  category: string;
+  question: string;
+  prepared_answer: string;
+  evidence_used: string[];
+}
+
+export interface InterviewSession {
+  role: string;
+  questions: InterviewQuestion[];
+  note: string;
+}

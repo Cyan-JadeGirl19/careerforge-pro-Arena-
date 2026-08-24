@@ -285,6 +285,54 @@ class ApplicationOut(BaseModel):
     updated_at: datetime
 
 
+# ---- follow-ups ----
+
+class FollowUpCreate(BaseModel):
+    kind: str = Field(default="custom", pattern="^(post_application|post_interview|custom)$")
+    due_days: int = Field(default=5, ge=0, le=90)
+    notes: str | None = Field(default=None, max_length=4000)
+
+
+class FollowUpOut(BaseModel):
+    id: str
+    profile_id: str
+    application_id: str | None
+    kind: str
+    due_at: datetime
+    status: str
+    draft_text: str
+    notes: str | None
+    application_title: str | None = None
+    application_company: str | None = None
+
+
+class FollowUpStatusIn(BaseModel):
+    status: str = Field(pattern="^(sent|skipped)$")
+    notes: str | None = Field(default=None, max_length=4000)
+    draft_text: str | None = Field(default=None, max_length=20000)
+
+
+# ---- interview coach ----
+
+class InterviewGenerateIn(BaseModel):
+    role: str = Field(min_length=2, max_length=120)
+    jd_id: str | None = None
+    jd_text: str | None = Field(default=None, max_length=100000)
+
+
+class InterviewQuestionOut(BaseModel):
+    category: str
+    question: str
+    prepared_answer: str
+    evidence_used: list[str]
+
+
+class InterviewSessionOut(BaseModel):
+    role: str
+    questions: list[InterviewQuestionOut]
+    note: str
+
+
 class HealthOut(BaseModel):
     status: str = "ok"
     version: str

@@ -9,6 +9,8 @@ import type {
   Application,
   ApplicationStatus,
   AutoPipelineResult,
+  FollowUp,
+  InterviewSession,
   ConsentGrant,
   ConsentOut,
   CoverLetter,
@@ -367,6 +369,32 @@ export const api = {
     body: { references_requested: string; reference_ids: string[] },
   ) =>
     request<Application>(`/applications/${appId}/references`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  // follow-ups
+  listFollowups: (profileId: string) =>
+    request<FollowUp[]>(`/profiles/${profileId}/followups`),
+  createFollowup: (
+    appId: string,
+    body: { kind?: string; due_days?: number; notes?: string | null },
+  ) => request<FollowUp>(`/applications/${appId}/followups`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  }),
+  updateFollowup: (
+    id: string,
+    body: { status?: string; notes?: string | null; draft_text?: string | null },
+  ) => request<FollowUp>(`/followups/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteFollowup: (id: string) => request<void>(`/followups/${id}`, { method: "DELETE" }),
+
+  // interview coach
+  generateInterview: (
+    profileId: string,
+    body: { role: string; jd_id?: string | null; jd_text?: string | null },
+  ) =>
+    request<InterviewSession>(`/interview/generate?profile_id=${profileId}`, {
       method: "POST",
       body: JSON.stringify(body),
     }),

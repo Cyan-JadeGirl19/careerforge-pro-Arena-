@@ -13,7 +13,9 @@ from .api.v1 import (
     consents,
     cvs,
     documents,
+    followups,
     health,
+    interview,
     jobs,
     profiles,
     recruiters,
@@ -56,6 +58,8 @@ def create_app() -> FastAPI:
     api.include_router(jobs.router)
     api.include_router(recruiters.router)
     api.include_router(references.router)
+    api.include_router(followups.router)
+    api.include_router(interview.router)
     app.include_router(api)
     return app
 

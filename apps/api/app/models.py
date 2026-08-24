@@ -226,6 +226,38 @@ class ReferenceDocument(Base):
     )
 
 
+class FollowUp(Base):
+    """A scheduled follow-up with a plain-language draft.
+
+    Created automatically when an application moves to 'applied'
+    (5 days later) or 'interview' (3 days later), or manually by the
+    candidate. Drafts only - sending happens in the candidate's own
+    mail client (Gmail integration, later).
+    """
+
+    __tablename__ = "followups"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    profile_id: Mapped[str] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    application_id: Mapped[str | None] = mapped_column(
+        ForeignKey("applications.id", ondelete="CASCADE"), nullable=True
+    )
+    kind: Mapped[str] = mapped_column(String(30), default="post_application")
+    # post_application | post_interview | custom
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(20), default="scheduled", index=True)
+    # scheduled | sent | skipped
+    draft_text: Mapped[str] = mapped_column(Text, default="")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+    application: Mapped["Application | None"] = relationship()
+
+
 class JobPosting(Base):
     """A job from a permitted public source (global pool, deduped)."""
 

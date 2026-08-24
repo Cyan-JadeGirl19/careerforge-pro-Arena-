@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.8.0 - 2026-08-24
+
+Follow-ups + Interview Coach:
+
+- Follow-ups auto-scheduled by the program: 5 days after 'applied',
+  3 days after 'interview' (one per kind, no duplicates), with a
+  plain-language draft the candidate edits and sends themselves
+- Dashboard 'Follow-ups to send' card (due/overdue, draft preview,
+  mark sent/skip) and per-application follow-up section with manual
+  scheduling
+- Manual follow-up drafts are consent-gated (outreach_sending);
+  marking sent/skipped is bookkeeping and needs no consent
+- Interview Coach: mock interview for any target role, optionally
+  grounded in a specific job's JD; categories: Core, Behavioural
+  (STAR from real CV bullets), Role-specific (JD keywords),
+  Red flag/gap (auto-detected employment gaps), South Africa remote
+  set (time zones, setup, payments, why-SA), Close
+- Prepared answers are STAR scaffolds built from the candidate's OWN
+  CV content; [Add: …] markers show what is genuinely the
+  candidate's to write - nothing is invented
+- Practice mode: one question at a time, answer out loud, reveal
+  prepared answer
+- 103 API tests passing; both flows verified live end-to-end
+
 ## 0.7.0 - 2026-08-24
 
 References Manager (Phase 3, first slice):

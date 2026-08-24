@@ -68,7 +68,7 @@ def delete_profile(profile_id: str, db: Session = Depends(get_db)) -> None:
     )
 
     profile = get_profile_or_404(db, profile_id)
-    from ...models import RecruiterContact, Reference, ReferenceDocument
+    from ...models import FollowUp, RecruiterContact, Reference, ReferenceDocument
     from ...references import store as ref_store
 
     # reference documents: delete private files, then rows
@@ -79,7 +79,7 @@ def delete_profile(profile_id: str, db: Session = Depends(get_db)) -> None:
         db.delete(doc)
     for model in (
         VideoResponse, CoverLetter, Application, SavedSearch,
-        RecruiterContact, Reference,
+        RecruiterContact, Reference, FollowUp,
     ):
         for row in list(
             db.scalars(select(model).where(model.profile_id == profile.id)).all()

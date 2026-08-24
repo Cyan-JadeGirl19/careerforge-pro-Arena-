@@ -7,6 +7,7 @@ import { useSession } from "../../../../lib/session";
 import type {
   Application,
   ApplicationStatus,
+  FollowUp,
   Reference,
   TailoredCv,
 } from "../../../../../../packages/contracts/types";
@@ -33,6 +34,8 @@ export default function ApplicationDetailPage({ params }: { params: { id: string
   const [allRefs, setAllRefs] = useState<Reference[]>([]);
   const [selRefs, setSelRefs] = useState<Set<string>>(new Set());
   const [refRequested, setRefRequested] = useState("unspecified");
+  const [followups, setFollowups] = useState<FollowUp[]>([]);
+  const [fuDays, setFuDays] = useState(5);
 
   const load = useCallback(async () => {
     try {
@@ -46,11 +49,39 @@ export default function ApplicationDetailPage({ params }: { params: { id: string
       if (a.letter) setLetter(a.letter.text);
       if (session) {
         setAllRefs(await api.listReferences(session.profileId));
+        const allFus = await api.listFollowups(session.profileId);
+        setFollowups(allFus.filter((f) => f.application_id === a.id));
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not load this application.");
     }
   }, [id, session]);
+
+  const addFollowup = async () => {
+    setBusy("fu");
+    setError(null);
+    try {
+      await api.createFollowup(id, { kind: "custom", due_days: fuDays });
+      await load();
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? `${e.message} (${e.code}) — enable the outreach consent in Settings to create drafts.`
+          : "Could not create the follow-up.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const actFollowup = async (fid: string, status: "sent" | "skipped") => {
+    try {
+      await api.updateFollowup(fid, { status });
+      setFollowups((f) => f.filter((x) => x.id !== fid));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not update the follow-up.");
+    }
+  };
 
   useEffect(() => {
     load();
@@ -320,6 +351,57 @@ export default function ApplicationDetailPage({ params }: { params: { id: string
               </a>
             </div>
           )}
+        </div>
+
+        <div className="card">
+          <h3>Follow-ups</h3>
+          <p className="muted">
+            Scheduled automatically: 5 days after applying, 3 days after an interview. Drafts are
+            yours to edit and send.
+          </p>
+          {followups.length > 0 && (
+            <div className="stack" style={{ marginBottom: 12 }}>
+              {followups.map((f) => {
+                const overdue = new Date(f.due_at).getTime() < Date.now();
+                return (
+                  <div className="item" key={f.id}>
+                    <div className="row" style={{ justifyContent: "space-between" }}>
+                      <span className="chip neutral">{f.kind.replace(/_/g, " ")}</span>
+                      <span className={`chip ${overdue ? "missing" : "brand"}`}>
+                        {overdue ? "due now" : `due ${new Date(f.due_at).toLocaleDateString()}`}
+                      </span>
+                    </div>
+                    <pre className="script" style={{ margin: "8px 0", maxHeight: 150, overflowY: "auto" }}>
+                      {f.draft_text}
+                    </pre>
+                    <div className="row">
+                      <button className="btn" onClick={() => actFollowup(f.id, "sent")}>
+                        Mark sent
+                      </button>
+                      <button className="btn secondary" onClick={() => actFollowup(f.id, "skipped")}>
+                        Skip
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="row">
+            <select
+              value={fuDays}
+              onChange={(e) => setFuDays(Number(e.target.value))}
+              style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px" }}
+            >
+              <option value={2}>in 2 days</option>
+              <option value={5}>in 5 days</option>
+              <option value={7}>in 7 days</option>
+              <option value={10}>in 10 days</option>
+            </select>
+            <button className="btn secondary" onClick={addFollowup} disabled={busy === "fu"}>
+              {busy === "fu" ? "Scheduling…" : "Schedule another follow-up"}
+            </button>
+          </div>
         </div>
 
         <div className="card">

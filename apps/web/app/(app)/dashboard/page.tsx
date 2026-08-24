@@ -4,7 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useSession } from "../../../lib/session";
-import type { Application, CvAnalysisOut, CvOut, RoleRecommendation } from "../../../../../packages/contracts/types";
+import type {
+  Application,
+  CvAnalysisOut,
+  CvOut,
+  FollowUp,
+  RoleRecommendation,
+} from "../../../../../packages/contracts/types";
 
 export default function DashboardPage() {
   const { session } = useSession();
@@ -12,6 +18,7 @@ export default function DashboardPage() {
   const [analysis, setAnalysis] = useState<CvAnalysisOut | null>(null);
   const [roles, setRoles] = useState<RoleRecommendation[] | null>(null);
   const [apps, setApps] = useState<Application[] | null>(null);
+  const [followups, setFollowups] = useState<FollowUp[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -33,10 +40,24 @@ export default function DashboardPage() {
         }
       }
       setApps(await api.listApplications(session.profileId));
+      try {
+        setFollowups(await api.listFollowups(session.profileId));
+      } catch {
+        setFollowups([]);
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not load your dashboard.");
     }
   }, [session]);
+
+  const markFollowup = async (id: string, status: "sent" | "skipped") => {
+    try {
+      await api.updateFollowup(id, { status });
+      setFollowups((f) => f.filter((x) => x.id !== id));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not update the follow-up.");
+    }
+  };
 
   useEffect(() => {
     load();
@@ -116,6 +137,48 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {followups.length > 0 && (
+            <div className="card">
+              <h3>Follow-ups to send ({followups.length})</h3>
+              <p className="muted">
+                The program scheduled these automatically (5 days after applying, 3 days after an
+                interview). Review the draft, send it yourself, and mark it here.
+              </p>
+              <div className="stack">
+                {followups.map((f) => {
+                  const overdue = new Date(f.due_at).getTime() < Date.now();
+                  return (
+                    <div className="item" key={f.id}>
+                      <div className="row" style={{ justifyContent: "space-between" }}>
+                        <h4 style={{ margin: 0 }}>
+                          {f.application_title ?? "Application"}
+                          {f.application_company ? ` @ ${f.application_company}` : ""}
+                        </h4>
+                        <span className={`chip ${overdue ? "missing" : "brand"}`}>
+                          {overdue ? "due now" : `due ${new Date(f.due_at).toLocaleDateString()}`}
+                        </span>
+                      </div>
+                      <pre className="script" style={{ margin: "8px 0", maxHeight: 140, overflowY: "auto" }}>
+                        {f.draft_text}
+                      </pre>
+                      <div className="row">
+                        <button className="btn" onClick={() => markFollowup(f.id, "sent")}>
+                          Mark sent
+                        </button>
+                        <button className="btn secondary" onClick={() => markFollowup(f.id, "skipped")}>
+                          Skip
+                        </button>
+                        <Link href="/applications" className="muted" style={{ alignSelf: "center" }}>
+                          edit in application →
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

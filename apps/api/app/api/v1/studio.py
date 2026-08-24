@@ -245,10 +245,16 @@ def update_status(
     app = get_application_or_404(db, app_id)
     if payload.status not in VALID_STATUSES:
         raise HTTPException(status_code=422, detail={"code": "BAD_STATUS", "message": "Unknown status."})
+    old_status = app.status
     app.status = payload.status
     if payload.notes is not None:
         app.notes = payload.notes
     db.commit()
+    db.refresh(app)
+    # The program does the rest: schedule the right follow-up automatically.
+    from ...followups import maybe_schedule
+
+    maybe_schedule(db, app, payload.status)
     db.refresh(app)
     return _app_out(db, app)
 
