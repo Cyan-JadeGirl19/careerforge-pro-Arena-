@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useSession } from "../../../lib/session";
 import type { Job, SavedSearch, SourceStatus } from "../../../../../packages/contracts/types";
@@ -48,7 +48,7 @@ export default function JobFinderPage() {
   const [urlInput, setUrlInput] = useState("");
   const [nameInput, setNameInput] = useState("");
 
-  const loadJobs = useCallback(async () => {
+  const loadJobs = useCallback(async (): Promise<number> => {
     try {
       const rows = await api.searchJobs({
         q: q || undefined,
@@ -59,8 +59,10 @@ export default function JobFinderPage() {
         profile_id: pid || undefined,
       });
       setJobs(rows);
+      return rows.length;
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not load jobs.");
+      return -1;
     }
   }, [q, source, saOnly, maxAge, sort, pid]);
 
@@ -81,15 +83,26 @@ export default function JobFinderPage() {
     }
   }, [pid]);
 
+  const autoSynced = useRef(false);
+
   useEffect(() => {
     loadHealth();
     loadSaved();
   }, [loadHealth, loadSaved]);
 
   useEffect(() => {
-    const t = setTimeout(loadJobs, 250);
+    const t = setTimeout(async () => {
+      const count = await loadJobs();
+      // First visit: if the pool is empty, sync the feeds automatically so
+      // the user never sees an empty list.
+      if (!autoSynced.current) {
+        autoSynced.current = true;
+        if (count === 0) void sync();
+      }
+    }, 250);
     return () => clearTimeout(t);
-  }, [loadJobs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sync = async () => {
     setSyncing(true);

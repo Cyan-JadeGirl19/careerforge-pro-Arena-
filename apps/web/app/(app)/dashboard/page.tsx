@@ -9,6 +9,7 @@ import type {
   CvAnalysisOut,
   CvOut,
   FollowUp,
+  Job,
   RoleRecommendation,
 } from "../../../../../packages/contracts/types";
 
@@ -19,6 +20,8 @@ export default function DashboardPage() {
   const [roles, setRoles] = useState<RoleRecommendation[] | null>(null);
   const [apps, setApps] = useState<Application[] | null>(null);
   const [followups, setFollowups] = useState<FollowUp[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobPool, setJobPool] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -44,6 +47,20 @@ export default function DashboardPage() {
         setFollowups(await api.listFollowups(session.profileId));
       } catch {
         setFollowups([]);
+      }
+      // Top matches for this profile (non-fatal: job pool may be empty)
+      if (allCvs.length > 0) {
+        try {
+          const rows = await api.searchJobs({ profile_id: session.profileId, sort: "newest" });
+          const scored = rows
+            .filter((j) => j.match && j.match.score >= 40)
+            .sort((a, b) => (b.match?.score ?? 0) - (a.match?.score ?? 0))
+            .slice(0, 5);
+          setJobs(scored);
+          setJobPool(rows.length);
+        } catch {
+          setJobs([]);
+        }
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not load your dashboard.");
@@ -114,7 +131,55 @@ export default function DashboardPage() {
                 {analysis ? `${passed}/${analysis.checks.length}` : "—"}
               </div>
             </div>
+            <div className="card">
+              <div className="muted">Jobs in pool</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>{jobPool || "—"}</div>
+            </div>
           </div>
+
+          {jobs.length > 0 && (
+            <div className="card">
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <h3 style={{ margin: 0 }}>Top matches for you</h3>
+                <Link href="/jobs" className="muted">
+                  open Job Finder →
+                </Link>
+              </div>
+              <div className="stack">
+                {jobs.map((j) => (
+                  <Link
+                    key={j.id}
+                    href="/jobs"
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 10,
+                      textDecoration: "none",
+                      color: "inherit",
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      background: "#fafbfe",
+                      border: "1px solid var(--line)",
+                    }}
+                  >
+                    <div>
+                      <b style={{ fontSize: 14 }}>
+                        {j.title} {j.company ? `@ ${j.company}` : ""}
+                      </b>
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        [{j.source}]
+                        {j.posted_at &&
+                          ` · ${Math.max(0, Math.floor((Date.now() - new Date(j.posted_at).getTime()) / 86400000))}d ago`}
+                        {j.open_to_sa === "no" ? " · not SA-open" : ""}
+                      </div>
+                    </div>
+                    <span className="chip brand">{Math.round(j.match?.score ?? 0)}% match</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           {queue.length > 0 && (
             <div className="card">
