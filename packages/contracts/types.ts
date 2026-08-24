@@ -410,3 +410,67 @@ export interface InterviewSession {
   questions: InterviewQuestion[];
   note: string;
 }
+
+// ---- skills & salary ----
+
+export interface CourseSuggestion {
+  skill: string;
+  title: string;
+  provider: string;
+  url: string;
+  note: string;
+}
+
+export interface SkillsGaps {
+  role: string;
+  catalog_as_of: string;
+  present: string[];
+  missing: string[];
+  high_roi: string[];
+  low_roi: string[];
+  courses: CourseSuggestion[];
+  note: string;
+}
+
+export interface PlanWeek {
+  weeks: string;
+  focus: string;
+  detail: string;
+  url?: string | null;
+}
+
+export interface Plan90d {
+  role: string;
+  weeks: PlanWeek[];
+}
+
+export interface SalaryBenchmark {
+  role: string;
+  found: boolean;
+  benchmark_key?: string;
+  note?: string;
+  usd_month?: [number, number];
+  zar_month?: [number, number];
+  rate: { usd_zar: number; source: string };
+  disclaimer: string;
+}
+
+export interface NegotiationScript {
+  name: string;
+  text: string;
+}
+
+// ---- portfolio ----
+
+export interface PortfolioItem {
+  id: string;
+  profile_id: string;
+  title: string;
+  type: string;
+  description: string | null;
+  url: string | null;
+  tech_tags: string;
+  featured: boolean;
+  approved: boolean;
+  created_at: string;
+}

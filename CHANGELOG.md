@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.9.0 - 2026-08-24
+
+Skills & Salary + Portfolio Builder (Phase 3/4 completion):
+
+- Skills gap analysis vs any target role: present/missing skills,
+  high-ROI flag (skills other target roles also need)
+- Free-course catalogue (SQLBolt, freeCodeCamp, HubSpot Academy,
+  Google certificates on Coursera, Microsoft Learn, Atlassian,
+  The Odin Project) with URLs, dated (2026-08) and "verify before
+  enrolling" notes
+- 90-day learning plan: weeks 1-9 split across up to 3 skills
+  (course + real project), weeks 10-12 applying
+- Directional salary benchmarks (USD + ZAR monthly) for common
+  remote roles open to Africa, with LIVE USD/ZAR rate
+  (open.er-api.com, static fallback labelled), and an explicit
+  disclaimer: not income promises, not tax/legal advice (SARS
+  pointer included)
+- Negotiation scripts (opening, evidence anchoring,
+  geo-adjustment pushback, payment structure) + contractor
+  payment guidance (Deel/Wise/Payoneer/EOR)
+- Portfolio Builder: projects, GitHub repos (auto-pull public
+  repo metadata + README, one user-directed fetch), writing
+  samples, design, links; feature/approve/delete; public
+  portfolio page renders APPROVED items only
+- 113 API tests passing; both modules verified live end-to-end
+
 ## 0.8.0 - 2026-08-24
 
 Follow-ups + Interview Coach:

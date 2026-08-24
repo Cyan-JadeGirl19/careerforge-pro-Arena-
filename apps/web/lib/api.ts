@@ -11,6 +11,11 @@ import type {
   AutoPipelineResult,
   FollowUp,
   InterviewSession,
+  NegotiationScript,
+  Plan90d,
+  PortfolioItem,
+  SalaryBenchmark,
+  SkillsGaps,
   ConsentGrant,
   ConsentOut,
   CoverLetter,
@@ -398,4 +403,40 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  // skills & salary
+  skillsGaps: (profileId: string, role: string) =>
+    request<SkillsGaps>(`/skills/gaps?profile_id=${profileId}&role=${encodeURIComponent(role)}`),
+  plan90d: (profileId: string, role: string) =>
+    request<Plan90d>(`/skills/plan-90d?profile_id=${profileId}&role=${encodeURIComponent(role)}`),
+  salaryBenchmark: (role: string) =>
+    request<SalaryBenchmark>(`/salary/benchmarks?role=${encodeURIComponent(role)}`),
+  negotiationScripts: () =>
+    request<{ scripts: NegotiationScript[]; disclaimer: string }>(
+      "/salary/negotiation-scripts",
+    ),
+  paymentGuidance: () =>
+    request<{ points: string[]; disclaimer: string }>("/salary/payment-guidance"),
+
+  // portfolio
+  listPortfolio: (profileId: string) =>
+    request<PortfolioItem[]>(`/profiles/${profileId}/portfolio`),
+  addPortfolioItem: (profileId: string, body: Record<string, unknown>) =>
+    request<PortfolioItem>(`/profiles/${profileId}/portfolio`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updatePortfolioItem: (id: string, body: Record<string, unknown>) =>
+    request<PortfolioItem>(`/portfolio/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deletePortfolioItem: (id: string) =>
+    request<void>(`/portfolio/${id}`, { method: "DELETE" }),
+  pullGithubRepo: (profileId: string, repo: string) =>
+    request<PortfolioItem & { stars?: number }>(
+      `/profiles/${profileId}/portfolio/github`,
+      { method: "POST", body: JSON.stringify({ repo }) },
+    ),
+  portfolioPageUrl: (profileId: string) => `/api/v1/portfolio-page/${profileId}`,
 };

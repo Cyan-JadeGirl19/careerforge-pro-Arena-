@@ -258,6 +258,29 @@ class FollowUp(Base):
     application: Mapped["Application | None"] = relationship()
 
 
+class PortfolioItem(Base):
+    """A work sample / project / link shown on the candidate's portfolio.
+    Hidden from the public page until the candidate approves it."""
+
+    __tablename__ = "portfolio_items"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    profile_id: Mapped[str] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    type: Mapped[str] = mapped_column(String(30), default="project")
+    # project | github_repo | writing_sample | design | link
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    tech_tags: Mapped[str] = mapped_column(String(300), default="")
+    featured: Mapped[bool] = mapped_column(Boolean, default=False)
+    approved: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
 class JobPosting(Base):
     """A job from a permitted public source (global pool, deduped)."""
 
