@@ -102,17 +102,14 @@ Autonomous studio (upload CV → program does the rest):
 Sensitive operations return `409 CONSENT_REQUIRED` until the candidate has
 granted the matching consent (see `ConsentItem` in the contract).
 
-## Hosted deployment
+## Hosted deployment (LIVE)
 
-See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the full walk-through.
-In short:
+**Public app:** https://careerforge-web-w90j.onrender.com
+**API docs:** https://careerforge-api-h5yp.onrender.com/docs
 
-- **API + Postgres** → [Render](https://render.com) (Blueprint: `render.yaml` —
-  one click). Health: `https://<api>/api/v1/health`, docs: `https://<api>/docs`.
-- **Web** → [Vercel](https://vercel.com) (import this repo, Root Directory
-  `apps/web`, env var `CF_API_URL` = the Render URL).
-- Push to `main` → both auto-redeploy. Branches get Vercel preview URLs.
-  Rollback is one click on either platform.
+Everything runs on Render (free tier): web + API + Postgres.
+Push to `main` → auto-deploys. See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**
+for URLs, env vars, backups and rollback.
 
 ## Planned production architecture
 
