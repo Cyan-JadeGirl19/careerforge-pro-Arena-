@@ -121,6 +121,45 @@ class CvVersion(Base):
     )
 
 
+class RecruiterContact(Base):
+    """Publicly displayed recruiter / job-poster detail.
+
+    Compliance (agreed rules): only publicly displayed names, titles,
+    companies, public profile URLs, and published emails are stored.
+    Email status is explicit: 'published' (visible on the public page)
+    or 'pattern_suggested' (guessed, clearly unverified). No hidden
+    data, no SMTP probing, no mass harvesting.
+    """
+
+    __tablename__ = "recruiter_contacts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    profile_id: Mapped[str] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    source: Mapped[str] = mapped_column(String(30), default="manual")
+    # manual | job_posting | company_website
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    title: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    company: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    profile_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    email_status: Mapped[str] = mapped_column(String(20), default="none")
+    # none | published | pattern_suggested
+    suggested_emails: Mapped[str] = mapped_column(Text, default="[]")
+    job_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    suppressed: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
 class JobPosting(Base):
     """A job from a permitted public source (global pool, deduped)."""
 

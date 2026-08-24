@@ -19,7 +19,9 @@ import type {
   HealthOut,
   Job,
   JobDescription,
+  OutreachDraft,
   ParsedCv,
+  RecruiterContact,
   SavedSearch,
   SourceStatus,
   ProfileCreate,
@@ -278,5 +280,36 @@ export const api = {
   deleteSearch: (profileId: string, searchId: string) =>
     request<void>(`/jobs/profiles/${profileId}/saved-searches/${searchId}`, {
       method: "DELETE",
+    }),
+
+  // recruiters
+  listRecruiters: (profileId: string, includeSuppressed = false) =>
+    request<RecruiterContact[]>(
+      `/profiles/${profileId}/recruiters${includeSuppressed ? "?include_suppressed=true" : ""}`,
+    ),
+  extractRecruiters: (
+    profileId: string,
+    body: { url: string; company?: string },
+  ) =>
+    request<RecruiterContact[]>(`/profiles/${profileId}/recruiters/extract`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  createRecruiter: (profileId: string, body: Record<string, unknown>) =>
+    request<RecruiterContact>(`/profiles/${profileId}/recruiters`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateRecruiter: (contactId: string, body: Record<string, unknown>) =>
+    request<RecruiterContact>(`/recruiters/${contactId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteRecruiter: (contactId: string) =>
+    request<void>(`/recruiters/${contactId}`, { method: "DELETE" }),
+  outreachDraft: (contactId: string, body: { job_title?: string; tone?: string }) =>
+    request<OutreachDraft>(`/recruiters/${contactId}/outreach`, {
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 };

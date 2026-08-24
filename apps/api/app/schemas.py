@@ -344,6 +344,67 @@ class SavedSearchOut(BaseModel):
     created_at: datetime
 
 
+# ---- recruiters ----
+
+class RecruiterExtractIn(BaseModel):
+    url: str = Field(min_length=10, max_length=500)
+    company: str | None = Field(default=None, max_length=200)
+
+
+class RecruiterCreate(BaseModel):
+    name: str | None = Field(default=None, max_length=120)
+    title: str | None = Field(default=None, max_length=120)
+    company: str | None = Field(default=None, max_length=200)
+    email: str | None = Field(default=None, max_length=200)
+    profile_url: str | None = Field(default=None, max_length=500)
+    source_url: str | None = Field(default=None, max_length=500)
+    job_title: str | None = Field(default=None, max_length=200)
+    notes: str | None = Field(default=None, max_length=4000)
+    email_status: str = Field(default="none", pattern="^(none|published|pattern_suggested)$")
+
+
+class RecruiterUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=120)
+    title: str | None = Field(default=None, max_length=120)
+    company: str | None = Field(default=None, max_length=200)
+    email: str | None = Field(default=None, max_length=200)
+    profile_url: str | None = Field(default=None, max_length=500)
+    notes: str | None = Field(default=None, max_length=4000)
+    verified: bool | None = None
+    suppressed: bool | None = None
+    email_status: str | None = Field(default=None, pattern="^(none|published|pattern_suggested)$")
+
+
+class RecruiterOut(BaseModel):
+    id: str
+    profile_id: str
+    source: str
+    source_url: str | None
+    name: str | None
+    title: str | None
+    company: str | None
+    profile_url: str | None
+    email: str | None
+    email_status: str
+    suggested_emails: list[str]
+    job_title: str | None
+    notes: str | None
+    verified: bool
+    verified_at: datetime | None
+    suppressed: bool
+    created_at: datetime
+
+
+class OutreachIn(BaseModel):
+    job_title: str | None = Field(default=None, max_length=200)
+    tone: str = Field(default="direct", pattern="^(direct|warm)$")
+
+
+class OutreachOut(BaseModel):
+    draft: str
+    issues: list[str]
+
+
 class HealthOut(BaseModel):
     status: str = "ok"
     version: str

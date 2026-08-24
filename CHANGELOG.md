@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.6.0 - 2026-08-24
+
+Recruiter Finder (Phase 2, second slice):
+
+- Extract publicly displayed recruiter/poster details from one
+  user-provided public page (names via strict validated patterns,
+  public LinkedIn /in/ URLs, published emails)
+- Compliance-critical: only VISIBLE page text is read - scripts and
+  ad pixels are stripped first (verified against a real page whose
+  adroll_email pixel would have produced a false contact)
+- Nav/footer fragments rejected as names (strict candidate
+  validation); pattern-suggested emails clearly labelled unverified
+- Manual contacts, verify, suppress, delete; source + date kept
+- Outreach DRAFTS (never sent): personalised from the candidate's
+  real CV + the job, plain language, banned-phrasing checked,
+  unverified-email and no-email warnings surfaced
+- Consent-gated: recruiter_contact for discovery, outreach_sending
+  for drafts
+- 83 API tests passing; live flow verified end-to-end
+
 ## 0.5.0 - 2026-08-24
 
 Job Finder (Phase 2, first slice):

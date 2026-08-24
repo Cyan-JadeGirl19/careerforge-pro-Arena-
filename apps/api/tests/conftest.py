@@ -39,12 +39,17 @@ def profile_id(client) -> str:
 
 @pytest.fixture()
 def consented_profile(client, profile_id) -> str:
-    """Profile with the core consents granted (CV, jobs, video recording).
+    """Profile with the core consents granted (CV, jobs, video, recruiters).
 
-    Deliberately does NOT grant media_use, so AI-assisted media paths
-    remain separately gated.
+    Deliberately does NOT grant media_use or outreach_sending, so
+    AI-assisted media and outreach paths remain separately gated.
     """
-    for item in ("profile_processing", "job_matching", "video_recording"):
+    for item in (
+        "profile_processing",
+        "job_matching",
+        "video_recording",
+        "recruiter_contact",
+    ):
         res = client.post(
             f"{API}/profiles/{profile_id}/consents",
             json={"item": item, "granted": True},

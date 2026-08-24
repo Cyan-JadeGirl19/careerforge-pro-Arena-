@@ -307,3 +307,30 @@ export interface SavedSearch {
   filters: Record<string, unknown>;
   created_at: string;
 }
+
+// ---- recruiters ----
+
+export interface RecruiterContact {
+  id: string;
+  profile_id: string;
+  source: string;
+  source_url: string | null;
+  name: string | null;
+  title: string | null;
+  company: string | null;
+  profile_url: string | null;
+  email: string | null;
+  email_status: "none" | "published" | "pattern_suggested";
+  suggested_emails: string[];
+  job_title: string | null;
+  notes: string | null;
+  verified: boolean;
+  verified_at: string | null;
+  suppressed: boolean;
+  created_at: string;
+}
+
+export interface OutreachDraft {
+  draft: string;
+  issues: string[];
+}
