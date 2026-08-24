@@ -99,3 +99,162 @@ export interface HealthOut {
   environment: string;
   database: string;
 }
+
+// ---- studio: parsed CV, versions, JDs, tailoring, applications, video ----
+
+export interface ParsedExperience {
+  title: string;
+  company: string;
+  dates: string;
+  bullets: string[];
+}
+
+export interface ParsedEducation {
+  degree: string;
+  institution: string;
+  year: string;
+}
+
+export interface ParsedCv {
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+  links: string[];
+  summary: string;
+  experience: ParsedExperience[];
+  education: ParsedEducation[];
+  skills: string[];
+  certifications: string[];
+  projects: string[];
+  languages: string[];
+  other_sections: Record<string, string[]>;
+  extraction_notes: string[];
+}
+
+export interface CvContent {
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+  links: string[];
+  headline: string;
+  summary: string;
+  skills: string[];
+  experience: ParsedExperience[];
+  education: ParsedEducation[];
+  certifications: string[];
+  projects: string[];
+  languages: string[];
+  layout: string;
+  role_focus: string | null;
+  source_profile_version: string | null;
+  job_description_version: string | null;
+  generation_timestamp: string;
+}
+
+export interface CvVersion {
+  id: string;
+  profile_id: string;
+  base_cv_id: string;
+  kind: "master_ats" | "master_modern" | "master_role" | "custom";
+  title: string;
+  role_focus: string | null;
+  content: CvContent;
+  created_at: string;
+}
+
+export interface JobDescription {
+  id: string;
+  profile_id: string;
+  title: string;
+  company: string | null;
+  source_url: string | null;
+  text: string;
+  created_at: string;
+}
+
+export interface TailoredKeyword {
+  keyword: string;
+  in_candidate_profile: boolean;
+}
+
+export interface TailoredReport {
+  jd_title: string;
+  keywords: TailoredKeyword[];
+  surfaced_keywords: string[];
+  gaps: string[];
+  needs_confirmation: string[];
+  coverage: number;
+  note: string;
+}
+
+export interface TailoredCv {
+  id: string;
+  profile_id: string;
+  version_id: string;
+  jd_id: string;
+  title: string;
+  content: CvContent;
+  report: TailoredReport;
+  created_at: string;
+}
+
+export interface RoleRecommendation {
+  role: string;
+  match_pct: number;
+  matched: string[];
+  missing: string[];
+  reason: string;
+}
+
+export interface CoverLetter {
+  id: string;
+  application_id: string;
+  text: string;
+  tone: string;
+  quality_issues: string[];
+  created_at: string;
+}
+
+export interface VideoResponse {
+  id: string;
+  application_id: string;
+  question: string;
+  key_points: string | null;
+  exclusions: string | null;
+  tone: string;
+  target_seconds: number;
+  mode: "recording" | "enhance" | "ai_assisted";
+  script_text: string;
+  script_version: number;
+  media_status: "none" | "uploaded" | "ready";
+  ai_disclosed: boolean;
+  delete_media_after_export: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ApplicationStatus =
+  | "saved" | "ready" | "applied" | "phone_screen"
+  | "interview" | "offer" | "rejected" | "archived";
+
+export interface Application {
+  id: string;
+  profile_id: string;
+  jd_title: string;
+  jd_company: string | null;
+  cv_version_id: string | null;
+  tailored_cv_id: string | null;
+  status: ApplicationStatus;
+  notes: string | null;
+  letter: CoverLetter | null;
+  videos: VideoResponse[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutoPipelineResult {
+  applications: Application[];
+  skipped: Array<{ jd_id: string; reason: unknown }>;
+}
