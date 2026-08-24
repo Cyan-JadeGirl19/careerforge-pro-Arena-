@@ -205,24 +205,26 @@ def test_missing_contact_flagged_in_applications(client, consented_profile):
 # ------------------------------------------------------------------ erasure
 
 
-def test_erasure_deletes_references_and_files(client, consented_profile):
+def test_erasure_deletes_references_and_documents(client, consented_profile):
+    """Documents are bytes in the DB: row deletion IS complete erasure."""
+    from sqlalchemy import select
+
+    from app.db import SessionLocal
+    from app.models import ReferenceDocument
+
     rid = _add_reference(client, consented_profile)
     doc = client.post(
         f"{API}/references/{rid}/documents",
-        files={"file": ("letter.txt", b"body", "text/plain")},
+        files={"file": ("letter.txt", b"secret reference body", "text/plain")},
     ).json()
-    path = None
-    # locate the stored file via the db to assert physical deletion
-    from app.db import SessionLocal
-    from app.models import ReferenceDocument
-    from sqlalchemy import select
-
     db = SessionLocal()
     row = db.get(ReferenceDocument, doc["id"])
-    path = row.storage_path
+    assert row is not None and row.data == b"secret reference body"
     db.close()
-    assert path and __import__("os").path.exists(path)
 
     assert client.delete(f"{API}/profiles/{consented_profile}").status_code == 204
     assert client.get(f"{API}/references/{rid}").status_code == 404
-    assert not __import__("os").path.exists(path)
+    # the document row (and its bytes) are gone
+    db = SessionLocal()
+    assert db.get(ReferenceDocument, doc["id"]) is None
+    db.close()

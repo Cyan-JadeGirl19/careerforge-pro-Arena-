@@ -56,6 +56,49 @@ def update_profile(
 
 @router.delete("/{profile_id}", status_code=204)
 def delete_profile(profile_id: str, db: Session = Depends(get_db)) -> None:
+    """Erase the profile and everything derived from it (POPIA erasure).
+
+    Order matters: children first (documents, tailored, versions, jds),
+    then the profile. Document bytes live in the DB, so row deletion
+    is complete erasure.
+    """
+    from ...models import (
+        Application,
+        CoverLetter,
+        CvVersion,
+        FollowUp,
+        JobDescription,
+        PortfolioItem,
+        RecruiterContact,
+        Reference,
+        ReferenceDocument,
+        SavedSearch,
+        TailoredCv,
+        VideoResponse,
+    )
+
+    profile = get_profile_or_404(db, profile_id)
+    for model in (
+        ReferenceDocument, FollowUp, PortfolioItem, RecruiterContact,
+        CoverLetter, Application, SavedSearch, Reference,
+        TailoredCv, CvVersion, JobDescription, VideoResponse,
+    ):
+        for row in list(
+            db.scalars(select(model).where(model.profile_id == profile.id)).all()
+        ):
+            db.delete(row)
+    for cv in list(profile.cvs):
+        for analysis in list(cv.analyses):
+            db.delete(analysis)
+        db.delete(cv)
+    for consent in list(profile.consents):
+        db.delete(consent)
+    for evidence in list(profile.evidence):
+        db.delete(evidence)
+    db.delete(profile)
+    db.commit()
+
+def delete_profile(profile_id: str, db: Session = Depends(get_db)) -> None:
     """Erase the profile and everything derived from it."""
     from ...models import (
         Application,

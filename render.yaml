@@ -1,0 +1,31 @@
+# Render Blueprint: one-click deploy of the API + managed PostgreSQL.
+# In Render: New -> Blueprint -> point at this repository.
+# The web frontend is deployed separately on Vercel (see docs/DEPLOYMENT.md).
+
+services:
+  - type: web
+    name: careerforge-api
+    runtime: python
+    repo: https://github.com/Cyan-JadeGirl19/careerforge-pro-Arena-.git
+    rootDir: apps/api
+    plan: free
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: CF_ENVIRONMENT
+        value: production
+      - key: CF_DATABASE_URL
+        fromDatabase:
+          name: careerforge-db
+          property: connectionString
+      - key: CF_CORS_ORIGINS
+        # Update to your Vercel URL after deploying the web app, e.g.
+        # '["https://careerforge.vercel.app"]'
+        value: '["http://localhost:3000"]'
+
+databases:
+  - name: careerforge-db
+    type: psycopg
+    plan: free

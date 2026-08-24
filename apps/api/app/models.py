@@ -8,7 +8,7 @@ Design notes (see REVIEW.md "Important data model fields"):
 """
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -200,7 +200,12 @@ class Reference(Base):
 
 
 class ReferenceDocument(Base):
-    """An uploaded reference letter / list (stored privately)."""
+    """An uploaded reference letter / list (stored privately).
+
+    Bytes live in the database (not local disk) so they survive
+    ephemeral deploy filesystems (Render free tier, container
+    restarts). Production upgrade path: encrypted object storage.
+    """
 
     __tablename__ = "reference_documents"
 
@@ -212,11 +217,9 @@ class ReferenceDocument(Base):
         ForeignKey("profiles.id", ondelete="CASCADE"), index=True
     )
     filename: Mapped[str] = mapped_column(String(300))
-    content_type: Mapped[str] = mapped_column(
-        String(120), default="application/octet-stream"
-    )
+    content_type: Mapped[str] = mapped_column(String(120), default="application/octet-stream")
     size: Mapped[int] = mapped_column(Integer, default=0)
-    storage_path: Mapped[str] = mapped_column(String(500))
+    data: Mapped[bytes] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

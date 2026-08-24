@@ -161,7 +161,6 @@ def delete_reference(ref_id: str, db: Session = Depends(get_db)) -> None:
     for d in db.scalars(
         select(ReferenceDocument).where(ReferenceDocument.reference_id == r.id)
     ).all():
-        store.delete_document(d.storage_path)
         db.delete(d)
     db.delete(r)
     db.commit()
@@ -182,9 +181,10 @@ async def upload_reference_document(
     require_consent(db, r.profile_id, "reference_sharing")
     data = await file.read()
     try:
-        path, ctype = store.save_document(r.profile_id, file.filename or "reference.pdf", data)
+        store.validate_document(file.filename or "reference.pdf", data)
     except ValueError as exc:
         raise HTTPException(status_code=415, detail={"code": "UNSUPPORTED_FILE", "message": str(exc)})
+    ctype = store.content_type_for(file.filename or "reference.pdf")
     d = ReferenceDocument(
         id=str(uuid.uuid4()),
         reference_id=r.id,
@@ -192,7 +192,7 @@ async def upload_reference_document(
         filename=(file.filename or "reference")[:300],
         content_type=ctype,
         size=len(data),
-        storage_path=path,
+        data=data,
     )
     db.add(d)
     db.commit()
@@ -227,15 +227,8 @@ def download_reference_document(
 ) -> Response:
     d = get_doc_or_404(db, doc_id)
     require_consent(db, d.profile_id, "reference_sharing")
-    try:
-        data = store.read_document(d.storage_path)
-    except FileNotFoundError:
-        raise HTTPException(
-            status_code=410,
-            detail={"code": "DOCUMENT_GONE", "message": "This document no longer exists."},
-        )
     return Response(
-        content=data,
+        content=d.data,
         media_type=d.content_type,
         headers={"Content-Disposition": f'attachment; filename="{d.filename}"'},
     )
@@ -244,7 +237,6 @@ def download_reference_document(
 @router.delete("/documents/{doc_id}", status_code=204)
 def delete_reference_document(doc_id: str, db: Session = Depends(get_db)) -> None:
     d = get_doc_or_404(db, doc_id)
-    store.delete_document(d.storage_path)
     db.delete(d)
     db.commit()
 
