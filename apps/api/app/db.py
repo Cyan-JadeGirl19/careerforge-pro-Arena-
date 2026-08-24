@@ -8,10 +8,13 @@ from .config import get_settings
 
 _settings = get_settings()
 
-_connect_args = (
-    {"check_same_thread": False} if _settings.database_url.startswith("sqlite") else {}
-)
-engine = create_engine(_settings.database_url, connect_args=_connect_args)
+if _settings.database_url.startswith("sqlite"):
+    _engine_kwargs: dict = {"connect_args": {"check_same_thread": False}}
+else:
+    # Fail fast (10s) when the DB is unreachable - also keeps the health
+    # endpoint from hanging on a dead database.
+    _engine_kwargs = {"pool_pre_ping": True, "connect_args": {"connect_timeout": 10}}
+engine = create_engine(_settings.database_url, **_engine_kwargs)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

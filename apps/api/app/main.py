@@ -4,6 +4,8 @@ Run locally:
     uvicorn app.main:app --reload --port 8001
 Interactive docs: http://localhost:8001/docs
 """
+import threading
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
@@ -30,7 +32,21 @@ from .db import init_db
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    init_db()
+    # Normal case: schema is ready immediately. If the DB is unreachable at
+    # startup (first deploy, DB lagging the service), keep the app up and
+    # retry in the background - the health endpoint reports DB state.
+    try:
+        init_db()
+    except Exception:
+        def _init_with_retry() -> None:
+            for attempt in range(20):
+                try:
+                    init_db()
+                    return
+                except Exception:
+                    time.sleep(min(30, 2 * (attempt + 1)))
+
+        threading.Thread(target=_init_with_retry, daemon=True).start()
     yield
 
 
