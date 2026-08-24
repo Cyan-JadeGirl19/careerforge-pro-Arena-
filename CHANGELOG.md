@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.7.0 - 2026-08-24
+
+References Manager (Phase 3, first slice):
+
+- Private Reference Manager: name, title, relationship, company,
+  email/phone, type (current/former/academic/personal), notes
+- Reference letters/lists upload (PDF/DOCX/TXT, 5 MB), private storage,
+  download + delete
+- Reference list parser: names + contacts extracted from uploaded
+  lists; every parsed reference starts permission-UNCONFIRMED
+- Permission confirmation is mandatory before any sharing; revocation
+  clears the confirmation timestamp
+- Application integration: "does the employer ask for references?"
+  (yes/no/unspecified), select confirmed+approved references, attach
+  per application, warnings for missing contact details, downloadable
+  reference sheet (TXT)
+- References hidden from CVs by default (they only exist on the
+  application package)
+- Erasure deletes references, documents, and private storage files
+- 93 API tests passing; live flow verified end-to-end
+
+## 0.7.1 - 2026-08-24 (references UI)
+
+- References Manager page: add form with permission checkbox,
+  list upload + parse, permission/approve toggles, document
+  upload/download/delete per reference
+- Application detail: references section (requested yes/no/unspecified,
+  eligible-reference selection with inline warnings, save per
+  application, reference sheet download)
+
 ## 0.6.0 - 2026-08-24
 
 Recruiter Finder (Phase 2, second slice):

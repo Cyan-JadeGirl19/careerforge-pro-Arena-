@@ -22,3 +22,6 @@ uploads/
 # build artifacts
 *.egg-info/
 *.tsbuildinfo
+
+# private reference document storage
+storage/

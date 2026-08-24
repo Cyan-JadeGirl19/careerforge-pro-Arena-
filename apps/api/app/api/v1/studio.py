@@ -167,21 +167,8 @@ def _letter_out(l: CoverLetter) -> CoverLetterOut:
     )
 
 
-def _app_out(a: Application) -> ApplicationOut:
-    return ApplicationOut(
-        id=a.id,
-        profile_id=a.profile_id,
-        jd_title=a.jd.title,
-        jd_company=a.jd.company,
-        cv_version_id=a.cv_version_id,
-        tailored_cv_id=a.tailored_cv_id,
-        status=a.status,
-        notes=a.notes,
-        letter=_letter_out(a.letter) if a.letter else None,
-        videos=[_video_out(v) for v in a.videos],
-        created_at=a.created_at,
-        updated_at=a.updated_at,
-    )
+def _app_out(db: Session, a: Application) -> "ApplicationOut":
+    return applications_internal.app_out(db, a)
 
 
 def get_application_or_404(db: Session, app_id: str) -> Application:
@@ -234,7 +221,7 @@ def create_application(
     db.add(app)
     db.commit()
     db.refresh(app)
-    return _app_out(app)
+    return _app_out(db, app)
 
 
 @router.get("/profiles/{profile_id}/applications", response_model=list[ApplicationOut])
@@ -243,12 +230,12 @@ def list_applications(profile_id: str, db: Session = Depends(get_db)) -> list[Ap
     rows = db.scalars(
         select(Application).where(Application.profile_id == profile_id).order_by(Application.created_at.desc())
     ).all()
-    return [_app_out(a) for a in rows]
+    return [_app_out(db, a) for a in rows]
 
 
 @router.get("/applications/{app_id}", response_model=ApplicationOut)
 def get_application(app_id: str, db: Session = Depends(get_db)) -> ApplicationOut:
-    return _app_out(get_application_or_404(db, app_id))
+    return _app_out(db, get_application_or_404(db, app_id))
 
 
 @router.post("/applications/{app_id}/status", response_model=ApplicationOut)
@@ -263,7 +250,7 @@ def update_status(
         app.notes = payload.notes
     db.commit()
     db.refresh(app)
-    return _app_out(app)
+    return _app_out(db, app)
 
 
 @router.post("/applications/{app_id}/tailor")
@@ -482,5 +469,5 @@ def auto_pipeline(
                 skipped.append({"jd_id": jd_id, "reason": f"video: {exc.detail}"})
         db.commit()
         db.refresh(app)
-        apps_out.append(_app_out(app))
+        apps_out.append(_app_out(db, app))
     return AutoPipelineOut(applications=apps_out, skipped=skipped)

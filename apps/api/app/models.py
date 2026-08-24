@@ -160,6 +160,72 @@ class RecruiterContact(Base):
     )
 
 
+class Reference(Base):
+    """A private reference (referee). Hidden from CVs by default; shared
+    only for applications the candidate selects, with permission
+    confirmation recorded before any sharing."""
+
+    __tablename__ = "references"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    profile_id: Mapped[str] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(120))
+    title: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    company: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    type: Mapped[str] = mapped_column(String(20), default="current")
+    # current | former | academic | personal
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    permission_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    permission_confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    approved: Mapped[bool] = mapped_column(Boolean, default=True)
+    include_by_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    suppressed: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+    # NOTE: must stay above the `relationship` column below - that column
+    # name would otherwise shadow the relationship() function.
+    documents: Mapped[list["ReferenceDocument"]] = relationship(
+        back_populates="reference", cascade="all, delete-orphan"
+    )
+
+    relationship: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+
+class ReferenceDocument(Base):
+    """An uploaded reference letter / list (stored privately)."""
+
+    __tablename__ = "reference_documents"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    reference_id: Mapped[str | None] = mapped_column(
+        ForeignKey("references.id", ondelete="CASCADE"), nullable=True
+    )
+    profile_id: Mapped[str] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    filename: Mapped[str] = mapped_column(String(300))
+    content_type: Mapped[str] = mapped_column(
+        String(120), default="application/octet-stream"
+    )
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    storage_path: Mapped[str] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+    reference: Mapped["Reference | None"] = relationship(
+        back_populates="documents"
+    )
+
+
 class JobPosting(Base):
     """A job from a permitted public source (global pool, deduped)."""
 
@@ -224,6 +290,9 @@ class Application(Base):
         ForeignKey("tailored_cvs.id", ondelete="SET NULL"), nullable=True
     )
     status: Mapped[str] = mapped_column(String(20), default="saved", index=True)
+    references_requested: Mapped[str] = mapped_column(String(20), default="unspecified")
+    # yes | no | unspecified - does the employer ask for references?
+    selected_reference_ids: Mapped[str] = mapped_column(Text, default="[]")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow

@@ -49,6 +49,7 @@ def consented_profile(client, profile_id) -> str:
         "job_matching",
         "video_recording",
         "recruiter_contact",
+        "reference_sharing",
     ):
         res = client.post(
             f"{API}/profiles/{profile_id}/consents",

@@ -68,13 +68,24 @@ def delete_profile(profile_id: str, db: Session = Depends(get_db)) -> None:
     )
 
     profile = get_profile_or_404(db, profile_id)
-    from ...models import RecruiterContact
+    from ...models import RecruiterContact, Reference, ReferenceDocument
+    from ...references import store as ref_store
 
-    for model in (VideoResponse, CoverLetter, Application, SavedSearch, RecruiterContact):
+    # reference documents: delete private files, then rows
+    for doc in list(
+        db.scalars(select(ReferenceDocument).where(ReferenceDocument.profile_id == profile.id)).all()
+    ):
+        ref_store.delete_document(doc.storage_path)
+        db.delete(doc)
+    for model in (
+        VideoResponse, CoverLetter, Application, SavedSearch,
+        RecruiterContact, Reference,
+    ):
         for row in list(
             db.scalars(select(model).where(model.profile_id == profile.id)).all()
         ):
             db.delete(row)
+    ref_store.delete_profile_storage(profile.id)
     for row in list(
         db.scalars(select(TailoredCv).where(TailoredCv.profile_id == profile.id)).all()
     ):

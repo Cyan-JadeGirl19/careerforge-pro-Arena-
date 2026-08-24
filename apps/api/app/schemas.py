@@ -254,6 +254,20 @@ class ApplicationStatusUpdate(BaseModel):
     notes: str | None = Field(default=None, max_length=4000)
 
 
+
+class ApplicationReferenceOut(BaseModel):
+    id: str
+    name: str
+    title: str | None
+    company: str | None
+    email: str | None
+    phone: str | None
+    type: str
+    permission_confirmed: bool
+    approved: bool
+    missing: list[str]
+
+
 class ApplicationOut(BaseModel):
     id: str
     profile_id: str
@@ -262,11 +276,20 @@ class ApplicationOut(BaseModel):
     cv_version_id: str | None
     tailored_cv_id: str | None
     status: str
+    references_requested: str
+    references: list[ApplicationReferenceOut] = []
     notes: str | None
     letter: CoverLetterOut | None
     videos: list[VideoOut]
     created_at: datetime
     updated_at: datetime
+
+
+class HealthOut(BaseModel):
+    status: str = "ok"
+    version: str
+    environment: str
+    database: str
 
 
 class AutoPipelineRequest(BaseModel):
@@ -405,8 +428,67 @@ class OutreachOut(BaseModel):
     issues: list[str]
 
 
-class HealthOut(BaseModel):
-    status: str = "ok"
-    version: str
-    environment: str
-    database: str
+# ---- references ----
+
+class ReferenceCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    title: str | None = Field(default=None, max_length=120)
+    relationship: str | None = Field(default=None, max_length=120)
+    company: str | None = Field(default=None, max_length=200)
+    email: str | None = Field(default=None, max_length=200)
+    phone: str | None = Field(default=None, max_length=50)
+    type: str = Field(default="current", pattern="^(current|former|academic|personal)$")
+    notes: str | None = Field(default=None, max_length=4000)
+    permission_confirmed: bool = False
+    include_by_default: bool = False
+
+
+class ReferenceUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=120)
+    title: str | None = Field(default=None, max_length=120)
+    relationship: str | None = Field(default=None, max_length=120)
+    company: str | None = Field(default=None, max_length=200)
+    email: str | None = Field(default=None, max_length=200)
+    phone: str | None = Field(default=None, max_length=50)
+    type: str | None = Field(default=None, pattern="^(current|former|academic|personal)$")
+    notes: str | None = Field(default=None, max_length=4000)
+    permission_confirmed: bool | None = None
+    approved: bool | None = None
+    include_by_default: bool | None = None
+    suppressed: bool | None = None
+
+
+class ReferenceDocumentOut(BaseModel):
+    id: str
+    reference_id: str | None
+    filename: str
+    content_type: str
+    size: int
+    created_at: datetime
+
+
+class ReferenceOut(BaseModel):
+    id: str
+    profile_id: str
+    name: str
+    title: str | None
+    relationship: str | None
+    company: str | None
+    email: str | None
+    phone: str | None
+    type: str
+    notes: str | None
+    permission_confirmed: bool
+    permission_confirmed_at: datetime | None
+    approved: bool
+    include_by_default: bool
+    suppressed: bool
+    documents: list[ReferenceDocumentOut] = []
+    created_at: datetime
+
+
+class AttachReferencesIn(BaseModel):
+    references_requested: str = Field(default="unspecified", pattern="^(yes|no|unspecified)$")
+    reference_ids: list[str] = Field(default_factory=list, max_length=10)
+
+

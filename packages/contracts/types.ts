@@ -247,6 +247,8 @@ export interface Application {
   cv_version_id: string | null;
   tailored_cv_id: string | null;
   status: ApplicationStatus;
+  references_requested: string;
+  references: ApplicationReference[];
   notes: string | null;
   letter: CoverLetter | null;
   videos: VideoResponse[];
@@ -333,4 +335,48 @@ export interface RecruiterContact {
 export interface OutreachDraft {
   draft: string;
   issues: string[];
+}
+
+// ---- references ----
+
+export interface ReferenceDocument {
+  id: string;
+  reference_id: string | null;
+  filename: string;
+  content_type: string;
+  size: number;
+  created_at: string;
+}
+
+export interface Reference {
+  id: string;
+  profile_id: string;
+  name: string;
+  title: string | null;
+  relationship: string | null;
+  company: string | null;
+  email: string | null;
+  phone: string | null;
+  type: "current" | "former" | "academic" | "personal";
+  notes: string | null;
+  permission_confirmed: boolean;
+  permission_confirmed_at: string | null;
+  approved: boolean;
+  include_by_default: boolean;
+  suppressed: boolean;
+  documents: ReferenceDocument[];
+  created_at: string;
+}
+
+export interface ApplicationReference {
+  id: string;
+  name: string;
+  title: string | null;
+  company: string | null;
+  email: string | null;
+  phone: string | null;
+  type: string;
+  permission_confirmed: boolean;
+  approved: boolean;
+  missing: string[];
 }

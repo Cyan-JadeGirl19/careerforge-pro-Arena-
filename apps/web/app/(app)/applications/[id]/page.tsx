@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, exportUrl } from "../../../../lib/api";
-import type { Application, ApplicationStatus, TailoredCv } from "../../../../../../packages/contracts/types";
+import { useSession } from "../../../../lib/session";
+import type {
+  Application,
+  ApplicationStatus,
+  Reference,
+  TailoredCv,
+} from "../../../../../../packages/contracts/types";
 
 const LABEL: Record<ApplicationStatus, string> = {
   saved: "Saved",
@@ -18,28 +24,59 @@ const LABEL: Record<ApplicationStatus, string> = {
 
 export default function ApplicationDetailPage({ params }: { params: { id: string } }) {
   const id = params.id;
+  const { session } = useSession();
   const [app, setApp] = useState<Application | null>(null);
   const [tailored, setTailored] = useState<TailoredCv | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [letter, setLetter] = useState<string>("");
+  const [allRefs, setAllRefs] = useState<Reference[]>([]);
+  const [selRefs, setSelRefs] = useState<Set<string>>(new Set());
+  const [refRequested, setRefRequested] = useState("unspecified");
 
   const load = useCallback(async () => {
     try {
       const a = await api.getApplication(id);
       setApp(a);
+      setRefRequested(a.references_requested || "unspecified");
+      setSelRefs(new Set(a.references?.map((r) => r.id) ?? []));
       if (a.tailored_cv_id) {
         setTailored(await api.getTailored(a.tailored_cv_id));
       }
       if (a.letter) setLetter(a.letter.text);
+      if (session) {
+        setAllRefs(await api.listReferences(session.profileId));
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not load this application.");
     }
-  }, [id]);
+  }, [id, session]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const attachRefs = async () => {
+    setBusy("refs");
+    setError(null);
+    try {
+      const a = await api.attachReferences(id, {
+        references_requested: refRequested,
+        reference_ids: Array.from(selRefs),
+      });
+      setApp(a);
+      setRefRequested(a.references_requested);
+      setSelRefs(new Set(a.references?.map((r) => r.id) ?? []));
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? `${e.message} (${e.code})`
+          : "Could not attach references.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const ensureTailored = async () => {
     setBusy("tailor");
@@ -184,6 +221,104 @@ export default function ApplicationDetailPage({ params }: { params: { id: string
               Plain, specific, written around this job — no template boilerplate. Generate it, edit
               in any app if you like, and it stays saved here.
             </p>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <h3 style={{ margin: 0 }}>References</h3>
+            <Link href="/references" className="muted">
+              manage references →
+            </Link>
+          </div>
+          <p className="muted">
+            Hidden from your CVs. Attached only here, and only with your confirmed permission.
+          </p>
+          <div className="field">
+            <label>Does this employer ask for references?</label>
+            <select
+              value={refRequested}
+              onChange={(e) => setRefRequested(e.target.value)}
+            >
+              <option value="unspecified">Not specified</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          {allRefs.length > 0 ? (
+            <div className="stack">
+              {allRefs.map((r) => {
+                const eligible = r.approved && r.permission_confirmed;
+                const hasContact = Boolean(r.email || r.phone);
+                return (
+                  <label
+                    key={r.id}
+                    className="checkbox"
+                    style={{ cursor: eligible ? "pointer" : "not-allowed", opacity: eligible ? 1 : 0.6 }}
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={!eligible}
+                      checked={selRefs.has(r.id)}
+                      onChange={(e) => {
+                        const next = new Set(selRefs);
+                        if (e.target.checked) next.add(r.id);
+                        else next.delete(r.id);
+                        setSelRefs(next);
+                      }}
+                    />
+                    <span>
+                      <b>{r.name}</b>
+                      {r.title ? ` · ${r.title}` : ""} {r.company ? `@ ${r.company}` : ""}
+                      {!r.permission_confirmed && (
+                        <span className="chip missing" style={{ marginLeft: 6 }}>
+                          permission not confirmed
+                        </span>
+                      )}
+                      {!r.approved && (
+                        <span className="chip missing" style={{ marginLeft: 6 }}>
+                          not approved
+                        </span>
+                      )}
+                      {eligible && !hasContact && (
+                        <span className="chip missing" style={{ marginLeft: 6 }}>
+                          no contact details
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                );
+              })}
+              <button
+                className="btn"
+                onClick={attachRefs}
+                disabled={busy === "refs"}
+              >
+                {busy === "refs" ? "Attaching…" : "Save references for this application"}
+              </button>
+            </div>
+          ) : (
+            <p className="muted">No references saved yet.</p>
+          )}
+          {app.references && app.references.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <b style={{ fontSize: 13 }}>Attached to this application:</b>
+              <div style={{ marginTop: 6 }}>
+                {app.references.map((r) => (
+                  <span key={r.id} className="chip" style={{ marginRight: 6 }}>
+                    {r.name}
+                    {r.missing.length > 0 && " ⚠"}
+                  </span>
+                ))}
+              </div>
+              <a
+                className="btn secondary"
+                href={`/api/v1/applications/${id}/references/summary`}
+                style={{ marginTop: 10, display: "inline-block" }}
+              >
+                Download reference sheet (TXT)
+              </a>
+            </div>
           )}
         </div>
 

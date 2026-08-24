@@ -17,6 +17,7 @@ from .api.v1 import (
     jobs,
     profiles,
     recruiters,
+    references,
     studio,
 )
 from .config import APP_VERSION, get_settings
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
     api.include_router(studio.router)
     api.include_router(jobs.router)
     api.include_router(recruiters.router)
+    api.include_router(references.router)
     app.include_router(api)
     return app
 

@@ -20,6 +20,7 @@ from ...models import (
     CvVersion,
     JobDescription,
     Profile,
+    Reference,
     TailoredCv,
 )
 from ...parsing import ParsedCv, parse_cv_text
@@ -107,6 +108,61 @@ def select_best_version(versions: list[CvVersion], jd: JobDescription) -> CvVers
         if score > best_score:
             best, best_score = v, score
     return best
+
+
+def application_references(db: Session, app: "Application") -> list[dict]:
+    """References attached to this application, with honest warnings."""
+    ids = json.loads(app.selected_reference_ids or "[]")
+    out = []
+    for rid in ids:
+        r = db.get(Reference, rid)
+        if r is None or r.suppressed:
+            continue
+        missing = []
+        if not r.approved:
+            missing.append("not approved by you")
+        if not r.permission_confirmed:
+            missing.append("permission not confirmed")
+        if not r.email and not r.phone:
+            missing.append("no contact details")
+        out.append(
+            {
+                "id": r.id,
+                "name": r.name,
+                "title": r.title,
+                "company": r.company,
+                "email": r.email,
+                "phone": r.phone,
+                "type": r.type,
+                "permission_confirmed": r.permission_confirmed,
+                "approved": r.approved,
+                "missing": missing,
+            }
+        )
+    return out
+
+
+def app_out(db: Session, app: "Application") -> dict:
+    from ...schemas import ApplicationOut
+
+    from .studio import _letter_out, _video_out
+
+    return ApplicationOut(
+        id=app.id,
+        profile_id=app.profile_id,
+        jd_title=app.jd.title,
+        jd_company=app.jd.company,
+        cv_version_id=app.cv_version_id,
+        tailored_cv_id=app.tailored_cv_id,
+        status=app.status,
+        references_requested=app.references_requested,
+        references=application_references(db, app),
+        notes=app.notes,
+        letter=_letter_out(app.letter) if app.letter else None,
+        videos=[_video_out(v) for v in app.videos],
+        created_at=app.created_at,
+        updated_at=app.updated_at,
+    )
 
 
 def create_application_package(db: Session, profile: Profile, jd: JobDescription) -> str:

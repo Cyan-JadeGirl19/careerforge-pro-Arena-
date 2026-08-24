@@ -22,6 +22,8 @@ import type {
   OutreachDraft,
   ParsedCv,
   RecruiterContact,
+  Reference,
+  ReferenceDocument,
   SavedSearch,
   SourceStatus,
   ProfileCreate,
@@ -309,6 +311,62 @@ export const api = {
     request<void>(`/recruiters/${contactId}`, { method: "DELETE" }),
   outreachDraft: (contactId: string, body: { job_title?: string; tone?: string }) =>
     request<OutreachDraft>(`/recruiters/${contactId}/outreach`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  // references
+  listReferences: (profileId: string, includeSuppressed = false) =>
+    request<Reference[]>(
+      `/profiles/${profileId}/references${includeSuppressed ? "?include_suppressed=true" : ""}`,
+    ),
+  createReference: (profileId: string, body: Record<string, unknown>) =>
+    request<Reference>(`/profiles/${profileId}/references`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateReference: (refId: string, body: Record<string, unknown>) =>
+    request<Reference>(`/references/${refId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteReference: (refId: string) =>
+    request<void>(`/references/${refId}`, { method: "DELETE" }),
+  uploadReferenceDocument: async (refId: string, file: File): Promise<ReferenceDocument> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`/api/v1/references/${refId}/documents`, {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) throw new ApiError(res.status, "UPLOAD_FAILED", "Upload failed");
+    return res.json();
+  },
+  listReferenceDocuments: (refId: string) =>
+    request<ReferenceDocument[]>(`/references/${refId}/documents`),
+  deleteReferenceDocument: (docId: string) =>
+    request<void>(`/documents/${docId}`, { method: "DELETE" }),
+  parseReferenceList: async (profileId: string, file: File): Promise<Reference[]> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`/api/v1/profiles/${profileId}/references/parse-list`, {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) {
+      let msg = "Could not read that file";
+      try {
+        const b = await res.json();
+        if (b?.detail?.message) msg = b.detail.message;
+      } catch {
+        // ignore
+      }
+      throw new ApiError(res.status, "PARSE_FAILED", msg);
+    }
+    return res.json();
+  },
+  attachReferences: (
+    appId: string,
+    body: { references_requested: string; reference_ids: string[] },
+  ) =>
+    request<Application>(`/applications/${appId}/references`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
