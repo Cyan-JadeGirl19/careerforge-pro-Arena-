@@ -2,6 +2,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ... import models, schemas
@@ -56,7 +57,21 @@ def update_profile(
 @router.delete("/{profile_id}", status_code=204)
 def delete_profile(profile_id: str, db: Session = Depends(get_db)) -> None:
     """Erase the profile and everything derived from it."""
+    from ...models import CvVersion, JobDescription, TailoredCv
+
     profile = get_profile_or_404(db, profile_id)
+    for row in list(
+        db.scalars(select(TailoredCv).where(TailoredCv.profile_id == profile.id)).all()
+    ):
+        db.delete(row)
+    for row in list(
+        db.scalars(select(CvVersion).where(CvVersion.profile_id == profile.id)).all()
+    ):
+        db.delete(row)
+    for row in list(
+        db.scalars(select(JobDescription).where(JobDescription.profile_id == profile.id)).all()
+    ):
+        db.delete(row)
     for cv in list(profile.cvs):
         for analysis in list(cv.analyses):
             db.delete(analysis)

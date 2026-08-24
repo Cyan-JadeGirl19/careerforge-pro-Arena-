@@ -84,6 +84,7 @@ class CvRecord(Base):
     title: Mapped[str] = mapped_column(String(200), default="Master CV")
     text: Mapped[str] = mapped_column(Text)
     source_type: Mapped[str] = mapped_column(String(20), default="paste")
+    parsed_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )
@@ -92,6 +93,78 @@ class CvRecord(Base):
     analyses: Mapped[list["CvAnalysis"]] = relationship(
         back_populates="cv", cascade="all, delete-orphan"
     )
+
+
+class CvVersion(Base):
+    """A built CV version: master (ats/modern/role), custom, or base."""
+
+    __tablename__ = "cv_versions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    profile_id: Mapped[str] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    base_cv_id: Mapped[str] = mapped_column(
+        ForeignKey("cv_records.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(200))
+    role_focus: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    content_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+    base_cv: Mapped["CvRecord"] = relationship()
+    tailored: Mapped[list["TailoredCv"]] = relationship(
+        back_populates="version", cascade="all, delete-orphan"
+    )
+
+
+class JobDescription(Base):
+    __tablename__ = "job_descriptions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    profile_id: Mapped[str] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    company: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class TailoredCv(Base):
+    """Job-specific CV version + its transparent coverage report.
+
+    Retains the per-application record agreed in the product spec:
+    JD used, keywords surfaced, claims needing confirmation, date.
+    """
+
+    __tablename__ = "tailored_cvs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    profile_id: Mapped[str] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    version_id: Mapped[str] = mapped_column(
+        ForeignKey("cv_versions.id", ondelete="CASCADE"), index=True
+    )
+    jd_id: Mapped[str] = mapped_column(
+        ForeignKey("job_descriptions.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(220))
+    content_json: Mapped[str] = mapped_column(Text)
+    report_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+    version: Mapped["CvVersion"] = relationship(back_populates="tailored")
+    jd: Mapped["JobDescription"] = relationship()
 
 
 class CvAnalysis(Base):

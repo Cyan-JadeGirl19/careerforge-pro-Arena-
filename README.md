@@ -75,8 +75,17 @@ Current v1 endpoints:
 - `GET /api/v1/health`
 - `POST/GET/PATCH/DELETE /api/v1/profiles[...]`
 - `POST/GET/DELETE /api/v1/profiles/{id}/consents[...]`
-- `POST/GET /api/v1/profiles/{id}/cvs`, `GET /api/v1/cvs/{id}`
+- `POST /api/v1/profiles/{id}/cvs` (paste), `POST /api/v1/profiles/{id}/cvs/upload` (PDF/DOCX/TXT)
+- `GET /api/v1/cvs/{id}`, `GET /api/v1/cvs/{id}/parsed`
 - `POST /api/v1/cvs/{id}/analyze`, `GET /api/v1/cvs/{id}/analysis/latest`
+- `POST /api/v1/cvs/{id}/versions` (master_ats | master_modern | master_role | custom)
+- `POST /api/v1/cvs/{id}/versions/build-masters` (all three in one action)
+- `GET /api/v1/cvs/{id}/versions`, `GET /api/v1/cvs/{id}/export`
+- `POST /api/v1/profiles/{id}/job-descriptions`
+- `POST /api/v1/cv-versions/{id}/tailor` → job-specific CV + coverage report
+- `GET /api/v1/cv-versions/{id}`, `GET /api/v1/cv-versions/{id}/export`
+- `GET /api/v1/tailored/{id}`, `GET /api/v1/tailored/{id}/export`
+- Exports: `docx`, `pdf`, `txt`, `json` — single-column, parser-safe
 
 Sensitive operations return `409 CONSENT_REQUIRED` until the candidate has
 granted the matching consent (see `ConsentItem` in the contract).

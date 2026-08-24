@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0 - 2026-08-24
+
+Document engine (CV core, continued):
+
+- PDF/DOCX/TXT CV upload with immediate structured parsing (pypdf, python-docx); extraction notes flag anything needing candidate confirmation
+- Three master CV builders: ATS Enterprise, Modern Professional, Role Specialist (`build-masters` builds all three in one action)
+- Unlimited custom CV versions with role focus, emphasize and exclude lists (transferable-skills repositioning only — never invented experience)
+- Job descriptions + per-job tailoring: keyword extraction, coverage report, surfaced keywords, gaps flagged for real evidence — nothing fabricated
+- Exports for every version: DOCX, PDF, plain text, JSON (single-column, parser-safe)
+- Per-application records retain JD id, surfaced keywords, confirmation list, timestamps
+- 32 API tests passing; OpenAPI contract re-exported
+- Governance: LICENSE (MIT), SECURITY.md, CODE_OF_CONDUCT.md, issue + PR templates
+- ROADMAP: video responses up to 3 minutes (user-confirmed), hosting/ops requirements recorded
+
 ## 0.2.0 - 2026-08-24
 
 - Expanded MVP into modular monorepo structure:

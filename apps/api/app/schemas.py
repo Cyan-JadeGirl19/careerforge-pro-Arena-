@@ -86,6 +86,83 @@ class CvOut(BaseModel):
     created_at: datetime
 
 
+class ParsedCvOut(BaseModel):
+    name: str
+    email: str
+    phone: str
+    location: str
+    links: list[str]
+    summary: str
+    experience: list[dict]
+    education: list[dict]
+    skills: list[str]
+    certifications: list[str]
+    projects: list[str]
+    languages: list[str]
+    other_sections: dict
+    extraction_notes: list[str]
+
+
+class CvVersionCreate(BaseModel):
+    kind: str = Field(pattern="^(master_ats|master_modern|master_role|custom)$")
+    role_focus: str | None = Field(
+        default=None, max_length=120,
+        description="Required for master_role and custom versions.",
+    )
+    emphasize: list[str] = Field(default_factory=list, max_length=20)
+    exclude: list[str] = Field(default_factory=list, max_length=20)
+
+
+class BuildMastersRequest(BaseModel):
+    role_focus: str | None = Field(
+        default=None, max_length=120,
+        description="Target role for the Role-Specialist master.",
+    )
+
+
+class CvVersionOut(BaseModel):
+    id: str
+    profile_id: str
+    base_cv_id: str
+    kind: str
+    title: str
+    role_focus: str | None
+    content: dict
+    created_at: datetime
+
+
+class JobDescriptionCreate(BaseModel):
+    title: str = Field(min_length=2, max_length=200)
+    company: str | None = Field(default=None, max_length=200)
+    source_url: str | None = Field(default=None, max_length=500)
+    text: str = Field(min_length=40, max_length=100_000)
+
+
+class JobDescriptionOut(BaseModel):
+    id: str
+    profile_id: str
+    title: str
+    company: str | None
+    source_url: str | None
+    text: str
+    created_at: datetime
+
+
+class TailorRequest(BaseModel):
+    jd_id: str
+
+
+class TailoredCvOut(BaseModel):
+    id: str
+    profile_id: str
+    version_id: str
+    jd_id: str
+    title: str
+    content: dict
+    report: dict
+    created_at: datetime
+
+
 class CheckResult(BaseModel):
     check: str
     passed: bool

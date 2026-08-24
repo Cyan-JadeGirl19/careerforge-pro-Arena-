@@ -39,11 +39,13 @@ def profile_id(client) -> str:
 
 @pytest.fixture()
 def consented_profile(client, profile_id) -> str:
-    res = client.post(
-        f"{API}/profiles/{profile_id}/consents",
-        json={"item": "profile_processing", "granted": True},
-    )
-    assert res.status_code == 201
+    """Profile with the consents needed for CV work + job matching."""
+    for item in ("profile_processing", "job_matching"):
+        res = client.post(
+            f"{API}/profiles/{profile_id}/consents",
+            json={"item": item, "granted": True},
+        )
+        assert res.status_code == 201
     return profile_id
 
 
