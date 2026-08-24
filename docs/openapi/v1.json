@@ -164,7 +164,7 @@
           "profiles"
         ],
         "summary": "Delete Profile",
-        "description": "Erase the profile and everything derived from it.",
+        "description": "Erase the profile and everything derived from it (POPIA erasure).\n\nOrder matters: children first (documents, tailored, versions, jds),\nthen the profile. Document bytes live in the DB, so row deletion\nis complete erasure.",
         "operationId": "delete_profile_api_v1_profiles__profile_id__delete",
         "parameters": [
           {
