@@ -18,3 +18,7 @@ uploads/
 # local databases
 *.db
 *.sqlite3
+
+# build artifacts
+*.egg-info/
+*.tsbuildinfo
