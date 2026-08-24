@@ -51,11 +51,29 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </nav>
+        <div className="sidefoot">
+          <div className="userrow">
+            <div className="avatar" style={{ width: 32, height: 32, fontSize: 11 }}>
+              {session ? session.firstName.slice(0, 2).toUpperCase() : "…"}
+            </div>
+            {session ? session.firstName : "…"}
+          </div>
+          <div>
+            <span className={health && health.startsWith("API v") ? "dot" : "dot off"} style={{ marginRight: 8 }} />
+            {health ?? "Connecting…"}
+          </div>
+        </div>
       </aside>
       <div className="content">
         <div className="topbar">
-          <div className="muted">{health}</div>
-          <div className="avatar">{session ? session.firstName.toUpperCase() : "…"}</div>
+          <div />
+          <a
+            href="/settings"
+            className="muted"
+            style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}
+          >
+            <div className="avatar">{session ? session.firstName.slice(0, 2).toUpperCase() : "…"}</div>
+          </a>
         </div>
         {children}
       </div>

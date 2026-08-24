@@ -85,17 +85,23 @@ export default function OnboardingPage() {
   };
 
   return (
-    <main style={{ maxWidth: 640, margin: "0 auto", padding: "60px 20px" }}>
+    <main className="centered">
+      <div className="hero-logo" />
       <div className="eyebrow">Welcome to CareerForge Pro</div>
-      <h1 style={{ fontSize: 28, margin: "8px 0 6px" }}>
+      <h1 style={{ marginTop: 10 }}>
         {step === 1 ? "Let's set you up" : "Choose what you're comfortable with"}
       </h1>
-      <p className="muted" style={{ fontSize: 14 }}>
+      <p className="muted">
         CV-first career acceleration for South Africans pursuing remote work. The program does the
         preparation; you approve anything sensitive.
       </p>
 
-      <div className="card" style={{ marginTop: 20 }}>
+      <div className="row" style={{ gap: 8, margin: "18px 0 16px" }}>
+        <span className={`chip ${step === 1 ? "brand" : "neutral"}`}>1 · About you</span>
+        <span className={`chip ${step === 2 ? "brand" : "neutral"}`}>2 · Your permissions</span>
+      </div>
+
+      <div className="card">
         {step === 1 ? (
           <>
             <div className="field">

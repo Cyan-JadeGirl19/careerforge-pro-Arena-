@@ -363,6 +363,7 @@ async def upload_cv(
         "profile_id": cv.profile_id,
         "version": cv.version,
         "title": cv.title,
+        "text": cv.text,
         "source_type": cv.source_type,
         "created_at": cv.created_at,
         "parsed": parsed.to_dict(),

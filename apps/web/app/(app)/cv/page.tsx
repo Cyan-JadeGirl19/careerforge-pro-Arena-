@@ -223,7 +223,7 @@ export default function CvStudioPage() {
           </div>
           {cv && (
             <p className="muted" style={{ marginTop: 10 }}>
-              Current CV: <b>{cv.title}</b> (v{cv.version}, {cv.source_type}) · {cv.text.length} chars
+              Current CV: <b>{cv.title}</b> (v{cv.version}, {cv.source_type}) · {cv.text?.length ?? 0} chars
             </p>
           )}
         </div>

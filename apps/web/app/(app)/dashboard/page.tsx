@@ -112,29 +112,46 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="stack">
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-            <div className="card">
-              <div className="muted">CV versions built</div>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>{cvs.length}</div>
-            </div>
-            <div className="card">
-              <div className="muted">Applications in play</div>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>{applied}</div>
-            </div>
-            <div className="card">
-              <div className="muted">Interviews</div>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>{interviews}</div>
-            </div>
-            <div className="card">
-              <div className="muted">CV checks passing</div>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>
-                {analysis ? `${passed}/${analysis.checks.length}` : "—"}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14 }}>
+            <div className="card" style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div className="staticon">📄</div>
+              <div>
+                <div className="statlabel">CV versions</div>
+                <div className="statnum">{cvs.length}</div>
               </div>
             </div>
-            <div className="card">
-              <div className="muted">Jobs in pool</div>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>{jobPool || "—"}</div>
+            <div className="card" style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div className="staticon">📥</div>
+              <div>
+                <div className="statlabel">In play</div>
+                <div className="statnum">{applied}</div>
+              </div>
             </div>
+            <div className="card" style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div className="staticon">🎯</div>
+              <div>
+                <div className="statlabel">Interviews</div>
+                <div className="statnum">{interviews}</div>
+              </div>
+            </div>
+            <div className="card" style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div className="staticon">✅</div>
+              <div>
+                <div className="statlabel">CV checks</div>
+                <div className="statnum">
+                  {analysis ? `${passed}/${analysis.checks.length}` : "—"}
+                </div>
+              </div>
+            </div>
+            {jobPool > 0 && (
+              <div className="card" style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div className="staticon">🔍</div>
+                <div>
+                  <div className="statlabel">Jobs in pool</div>
+                  <div className="statnum">{jobPool}</div>
+                </div>
+              </div>
+            )}
           </div>
 
           {jobs.length > 0 && (
