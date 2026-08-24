@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./careerforge.db"
     cors_origins: list[str] = ["http://localhost:3000"]
     debug: bool = True
+    # Job sources are feature-flagged; a broken source can be disabled
+    # without taking the app down. (Comma-separated list.)
+    job_sources: list[str] = ["wwr", "remoteok", "remotive"]
+    job_sync_ttl_hours: int = 6
+    # Adzuna (optional) - the candidate's own free API key, best for SA listings.
+    adzuna_app_id: str | None = None
+    adzuna_api_key: str | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> "Settings":

@@ -39,6 +39,7 @@ from ...schemas import (
     VideoMediaUpdate,
     VideoOut,
 )
+from . import applications_internal
 from .documents import get_cv_or_404, get_jd_or_404, get_version_or_404
 from .profiles import get_profile_or_404
 
@@ -197,24 +198,13 @@ def _ensure_tailored(db: Session, app: Application) -> None:
     """Create the tailored CV for this application if not already done."""
     if app.tailored_cv_id:
         return
+    profile = db.get(Profile, app.profile_id)
     if not app.cv_version_id:
-        app.cv_version_id = _select_best_version(db, db.get(Profile, app.profile_id), app.jd).id
+        versions = applications_internal.ensure_versions(db, profile, app.jd.title)
+        app.cv_version_id = applications_internal.select_best_version(versions, app.jd).id
         db.commit()
     version = get_version_or_404(db, app.cv_version_id)
-    cv = get_cv_or_404(db, version.base_cv_id)
-    parsed = _parsed_from_cv(cv, db)
-    content = CvContent.from_dict(json.loads(version.content_json))
-    tailored_content, report = builders.tailor(content, parsed, app.jd.title, app.jd.text, app.jd.id)
-    row = TailoredCv(
-        id=str(uuid.uuid4()),
-        profile_id=app.profile_id,
-        version_id=version.id,
-        jd_id=app.jd.id,
-        title=f"{app.jd.title} @ {app.jd.company}" if app.jd.company else f"Tailored — {app.jd.title}",
-        content_json=json.dumps(tailored_content.to_dict()),
-        report_json=json.dumps(report),
-    )
-    db.add(row)
+    row = applications_internal.tailor_version_for_jd(db, version, app.jd)
     app.tailored_cv_id = row.id
     db.commit()
 
@@ -471,35 +461,11 @@ def auto_pipeline(
     for jd_id in payload.jd_ids:
         jd = get_jd_or_404(db, jd_id)
         try:
-            version = _select_best_version(db, profile, jd)
+            app_id = applications_internal.create_application_package(db, profile, jd)
         except HTTPException as exc:
             skipped.append({"jd_id": jd_id, "reason": exc.detail})
             continue
-        app = Application(
-            id=str(uuid.uuid4()),
-            profile_id=profile.id,
-            jd_id=jd.id,
-            cv_version_id=version.id,
-        )
-        db.add(app)
-        db.flush()
-        _ensure_tailored(db, app)
-
-        try:
-            text, issues = writing.build_cover_letter(
-                parsed, jd.title, jd.company, jd.text, "direct"
-            )
-            letter = CoverLetter(
-                id=str(uuid.uuid4()),
-                application_id=app.id,
-                profile_id=profile.id,
-                text=text,
-                tone="direct",
-                quality_issues=json.dumps(issues),
-            )
-            db.add(letter)
-        except Exception as exc:  # keep the pipeline alive per job
-            skipped.append({"jd_id": jd_id, "reason": f"letter: {exc}"})
+        app = db.get(Application, app_id)
 
         if have_video_consent:
             try:

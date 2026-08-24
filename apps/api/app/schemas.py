@@ -279,6 +279,71 @@ class AutoPipelineOut(BaseModel):
     skipped: list[dict]
 
 
+# ---- jobs ----
+
+class JobMatchOut(BaseModel):
+    score: float
+    components: dict
+    skill_hits: list[str]
+    keyword_hits: list[str]
+    weights: dict
+
+
+class JobOut(BaseModel):
+    id: str
+    source: str
+    title: str
+    company: str | None
+    location: str | None
+    url: str | None
+    tags: str
+    salary_text: str | None
+    posted_at: datetime | None
+    fetched_at: datetime
+    open_to_sa: str
+    sa_signals: list[str]
+    global_signals: list[str]
+    exclude_signals: list[str]
+    payment_signals: list[str]
+    timezone_signals: list[str]
+    remote_type: str
+    match: JobMatchOut | None = None
+
+
+class JobDetailOut(JobOut):
+    description: str
+
+
+class SourceStatusOut(BaseModel):
+    source: str
+    enabled: bool
+    status: str | None = None
+    fetched: int | None = None
+    added: int | None = None
+    error: str | None = None
+
+
+class JobSyncOut(BaseModel):
+    sources: list[SourceStatusOut]
+    total_jobs: int
+
+
+class AddUrlIn(BaseModel):
+    url: str = Field(min_length=10, max_length=500)
+
+
+class SavedSearchIn(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    filters: dict = Field(default_factory=dict)
+
+
+class SavedSearchOut(BaseModel):
+    id: str
+    name: str
+    filters: dict
+    created_at: datetime
+
+
 class HealthOut(BaseModel):
     status: str = "ok"
     version: str

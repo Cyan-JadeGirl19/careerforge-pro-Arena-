@@ -121,6 +121,47 @@ class CvVersion(Base):
     )
 
 
+class JobPosting(Base):
+    """A job from a permitted public source (global pool, deduped)."""
+
+    __tablename__ = "job_postings"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    dedupe_key: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    source: Mapped[str] = mapped_column(String(30), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    company: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    location: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    tags: Mapped[str] = mapped_column(String(300), default="")
+    salary_text: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    # transparent SA-eligibility signals (computed from the posting text)
+    open_to_sa: Mapped[str] = mapped_column(String(10), default="unknown", index=True)
+    remote_type: Mapped[str] = mapped_column(String(10), default="unknown")
+    sa_signals_json: Mapped[str] = mapped_column(Text, default="[]")
+    global_signals_json: Mapped[str] = mapped_column(Text, default="[]")
+    exclude_signals_json: Mapped[str] = mapped_column(Text, default="[]")
+    payment_signals_json: Mapped[str] = mapped_column(Text, default="[]")
+    timezone_signals_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class SavedSearch(Base):
+    __tablename__ = "saved_searches"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    profile_id: Mapped[str] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(120))
+    filters_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
 class Application(Base):
     """One job application package: tailored CV + letter + video + status.
 

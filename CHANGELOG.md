@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.5.0 - 2026-08-24
+
+Job Finder (Phase 2, first slice):
+
+- Live job feeds from permitted public sources only: We Work Remotely
+  (RSS), RemoteOK (JSON), Remotive (API), Adzuna (official API, optional
+  free key - best for SA listings). LinkedIn/Indeed/PNet/CareerJunction
+  are NOT scraped (no permitted public feed); any single job can be
+  added by pasting its link (user-directed).
+- Per-source feature flags + per-source error isolation: one broken
+  source never stops the app
+- SA-eligibility signals computed transparently from employer text
+  (open to SA: yes/no/unknown, timezone, Deel/Wise/Payoneer/EOR
+  payment signals, remote/hybrid/onsite)
+- Transparent match scoring with visible weights (skills 40,
+  experience 20, keywords 20, feasibility 10, freshness 10)
+- Deduplication + freshness; saved searches
+- One-click hand-off: job -> application package (best CV version,
+  tailored CV, cover letter) with nothing submitted
+- Web UI: refresh, filters, eligibility + payment chips, match
+  breakdown, job detail, add-by-link, saved searches
+- 69 API tests passing; live sync verified (180 real jobs ingested)
+
 ## 0.4.0 - 2026-08-24
 
 Autonomous studio (the "upload your CV, the program does the rest" layer):

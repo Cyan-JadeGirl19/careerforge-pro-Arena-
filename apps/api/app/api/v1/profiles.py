@@ -62,12 +62,13 @@ def delete_profile(profile_id: str, db: Session = Depends(get_db)) -> None:
         CoverLetter,
         CvVersion,
         JobDescription,
+        SavedSearch,
         TailoredCv,
         VideoResponse,
     )
 
     profile = get_profile_or_404(db, profile_id)
-    for model in (VideoResponse, CoverLetter, Application):
+    for model in (VideoResponse, CoverLetter, Application, SavedSearch):
         for row in list(
             db.scalars(select(model).where(model.profile_id == profile.id)).all()
         ):

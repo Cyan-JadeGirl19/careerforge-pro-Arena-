@@ -258,3 +258,52 @@ export interface AutoPipelineResult {
   applications: Application[];
   skipped: Array<{ jd_id: string; reason: unknown }>;
 }
+
+// ---- jobs ----
+
+export interface JobMatch {
+  score: number;
+  components: Record<string, number>;
+  skill_hits: string[];
+  keyword_hits: string[];
+  weights: Record<string, number>;
+}
+
+export interface Job {
+  id: string;
+  source: string;
+  title: string;
+  company: string | null;
+  location: string | null;
+  url: string | null;
+  tags: string;
+  salary_text: string | null;
+  posted_at: string | null;
+  fetched_at: string;
+  open_to_sa: "yes" | "no" | "unknown";
+  sa_signals: string[];
+  global_signals: string[];
+  exclude_signals: string[];
+  payment_signals: string[];
+  timezone_signals: string[];
+  remote_type: string;
+  match: JobMatch | null;
+  description?: string;
+}
+
+export interface SourceStatus {
+  source: string;
+  enabled: boolean;
+  status?: string | null;
+  fetched?: number | null;
+  added?: number | null;
+  error?: string | null;
+  last_sync?: string | null;
+}
+
+export interface SavedSearch {
+  id: string;
+  name: string;
+  filters: Record<string, unknown>;
+  created_at: string;
+}

@@ -17,8 +17,11 @@ import type {
   CvOut,
   CvVersion,
   HealthOut,
+  Job,
   JobDescription,
   ParsedCv,
+  SavedSearch,
+  SourceStatus,
   ProfileCreate,
   ProfileOut,
   ProfileUpdate,
@@ -227,5 +230,53 @@ export const api = {
     request<AutoPipelineResult>(`/profiles/${profileId}/auto-pipeline`, {
       method: "POST",
       body: JSON.stringify({ cv_id: cvId, jd_ids: jdIds }),
+    }),
+
+  // jobs
+  searchJobs: (
+    params: {
+      q?: string;
+      source?: string;
+      sa_only?: boolean;
+      max_age_days?: number;
+      sort?: string;
+      profile_id?: string;
+    } = {},
+  ) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+    });
+    const s = qs.toString();
+    return request<Job[]>(`/jobs${s ? `?${s}` : ""}`);
+  },
+  syncJobs: () =>
+    request<{ sources: SourceStatus[]; total_jobs: number }>("/jobs/sync", {
+      method: "POST",
+      body: "{}",
+    }),
+  jobHealth: () => request<SourceStatus[]>("/jobs/health"),
+  getJob: (id: string, profileId?: string) =>
+    request<Job>(`/jobs/${id}${profileId ? `?profile_id=${profileId}` : ""}`),
+  jobToApplication: (jobId: string, profileId: string) =>
+    request<{ application_id: string; existing: boolean }>(
+      `/jobs/${jobId}/to-application?profile_id=${profileId}`,
+      { method: "POST", body: "{}" },
+    ),
+  addJobUrl: (profileId: string, url: string) =>
+    request<Job>(`/jobs/add-url?profile_id=${profileId}`, {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
+  listSavedSearches: (profileId: string) =>
+    request<SavedSearch[]>(`/jobs/profiles/${profileId}/saved-searches`),
+  saveSearch: (profileId: string, name: string, filters: Record<string, unknown>) =>
+    request<SavedSearch>(`/jobs/profiles/${profileId}/saved-searches`, {
+      method: "POST",
+      body: JSON.stringify({ name, filters }),
+    }),
+  deleteSearch: (profileId: string, searchId: string) =>
+    request<void>(`/jobs/profiles/${profileId}/saved-searches/${searchId}`, {
+      method: "DELETE",
     }),
 };
