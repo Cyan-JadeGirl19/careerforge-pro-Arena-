@@ -38,6 +38,8 @@ import type {
   ProfileUpdate,
   RoleRecommendation,
   TailoredCv,
+  VideoJob,
+  VideoQualityReport,
   VideoResponse,
 } from "../../../packages/contracts/types";
 
@@ -235,6 +237,80 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ media_status }),
     }),
+
+  // video studio media (upload / quality / enhance / captions / exports)
+  videoMediaUrl: (videoId: string, mediaId: string) =>
+    `/api/v1/videos/${videoId}/media/${mediaId}/download`,
+  uploadVideoMedia: async (
+    videoId: string,
+    file: File | Blob,
+    filename: string,
+    likenessConsent: boolean,
+  ): Promise<VideoResponse> => {
+    const form = new FormData();
+    form.append("file", file, filename);
+    form.append("likeness_consent", likenessConsent ? "true" : "false");
+    const res = await fetch(`${BASE}/videos/${videoId}/media-upload`, {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) {
+      let code = "UPLOAD_FAILED";
+      let message = `Upload failed (${res.status})`;
+      try {
+        const b = await res.json();
+        if (b?.detail?.code) code = b.detail.code;
+        if (b?.detail?.message) message = b.detail.message;
+      } catch {
+        // non-JSON body
+      }
+      throw new ApiError(res.status, code, message);
+    }
+    return res.json();
+  },
+  analyzeVideoMedia: (videoId: string, mediaId: string) =>
+    request<{ media_id: string; report: VideoQualityReport }>(
+      `/videos/${videoId}/media/${mediaId}/analyze`,
+      { method: "POST", body: "{}" },
+    ),
+  enhanceVideoMedia: (
+    videoId: string,
+    mediaId: string,
+    body: {
+      normalize_audio?: boolean;
+      auto_enhance?: boolean;
+      brightness?: number;
+      contrast?: number;
+      saturation?: number;
+      framing?: "none" | "16x9" | "9x16" | "1x1";
+      burn_captions?: boolean;
+    },
+  ) =>
+    request<VideoJob>(`/videos/${videoId}/media/${mediaId}/enhance`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  exportVideoMp4: (videoId: string, mediaId: string) =>
+    request<VideoJob>(`/videos/${videoId}/media/${mediaId}/export-mp4`, {
+      method: "POST",
+      body: "{}",
+    }),
+  exportVideoAudio: (videoId: string, mediaId: string) =>
+    request<VideoResponse>(`/videos/${videoId}/media/${mediaId}/export-audio`, {
+      method: "POST",
+      body: "{}",
+    }),
+  generateVideoCaptions: (
+    videoId: string,
+    body: { transcript?: string; use_script?: boolean; media_id?: string },
+  ) =>
+    request<VideoResponse>(`/videos/${videoId}/captions`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deleteVideoMedia: (videoId: string, mediaId: string) =>
+    request<void>(`/videos/${videoId}/media/${mediaId}`, { method: "DELETE" }),
+  getVideoJob: (jobId: string) => request<VideoJob>(`/jobs/video/${jobId}`),
 
   // autonomous pipeline
   autoPipeline: (profileId: string, cvId: string, jdIds: string[]) =>

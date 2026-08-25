@@ -69,6 +69,20 @@ Optional: Vercel + this repo (Root Directory `apps/web`, env var
 `CF_API_URL` = the API URL). Everything currently runs fine on Render;
 switching is a preference, not a requirement.
 
+## Media processing (Video Studio)
+
+- The API bundles a static ffmpeg binary via `imageio-ffmpeg` (pip wheel)
+  - no system ffmpeg needed on Render. No extra env vars.
+- Heavy work (enhance, MP4 conversion) runs as an in-process background
+  job: `POST .../enhance` returns `202` + `job_id`, the UI polls
+  `GET /api/v1/jobs/video/{job_id}`. This keeps renders under free-tier
+  HTTP response timeouts. Job state is in-memory: a service restart
+  drops in-flight jobs (media bytes are safe in the database; the UI
+  re-triggers).
+- Media bytes (originals, enhanced MP4, captions, MP3) are stored in
+  PostgreSQL next to the application record. Watch Postgres usage if
+  media volume grows - the upgrade path is encrypted object storage.
+
 ## Known production behaviour
 
 - First request after idle: 30-60 s (free-tier sleep) - normal.

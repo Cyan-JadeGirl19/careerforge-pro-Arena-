@@ -420,6 +420,14 @@ class VideoResponse(Base):
     # none | uploaded | ready
     ai_disclosed: Mapped[bool] = mapped_column(Boolean, default=False)
     delete_media_after_export: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Candidate confirmed the face and voice in the footage are theirs
+    # (or that they have permission to use the material). Required before
+    # upload and export of processed media. Nullable on purpose so the
+    # additive schema migration works on existing databases (NULL =
+    # not yet confirmed for legacy rows).
+    likeness_consent: Mapped[bool | None] = mapped_column(
+        Boolean, default=False, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )
@@ -428,6 +436,45 @@ class VideoResponse(Base):
     )
 
     application: Mapped["Application"] = relationship(back_populates="videos")
+    media: Mapped[list["VideoMedia"]] = relationship(
+        back_populates="video", cascade="all, delete-orphan",
+        order_by="VideoMedia.created_at",
+    )
+
+
+class VideoMedia(Base):
+    """A media artefact attached to a video response.
+
+    Kinds: ``original`` (uploaded/recording), ``enhanced`` (processed
+    MP4), ``captions`` (WebVTT text), ``audio`` (MP3).
+
+    Bytes live in the database (not local disk) so they survive
+    ephemeral deploy filesystems (Render free tier, container restarts)
+    - same pattern as ReferenceDocument. Production upgrade path:
+    encrypted object storage.
+    """
+
+    __tablename__ = "video_media"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    video_response_id: Mapped[str] = mapped_column(
+        ForeignKey("video_responses.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(20))
+    # original | enhanced | captions | audio
+    filename: Mapped[str] = mapped_column(String(300))
+    content_type: Mapped[str] = mapped_column(
+        String(120), default="application/octet-stream"
+    )
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    probe_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quality_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+    video: Mapped["VideoResponse"] = relationship(back_populates="media")
 
 
 class JobDescription(Base):

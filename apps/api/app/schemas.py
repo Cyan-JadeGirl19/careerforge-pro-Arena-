@@ -225,6 +225,16 @@ class VideoCreate(BaseModel):
     delete_media_after_export: bool = True
 
 
+class VideoMediaOut(BaseModel):
+    id: str
+    kind: str  # original | enhanced | captions | audio
+    filename: str
+    content_type: str
+    size: int
+    duration: float | None = None
+    created_at: datetime
+
+
 class VideoOut(BaseModel):
     id: str
     application_id: str
@@ -239,12 +249,50 @@ class VideoOut(BaseModel):
     media_status: str
     ai_disclosed: bool
     delete_media_after_export: bool
+    likeness_consent: bool = False
+    media: list[VideoMediaOut] = []
     created_at: datetime
     updated_at: datetime
 
 
 class VideoMediaUpdate(BaseModel):
     media_status: str = Field(pattern="^(uploaded|ready)$")
+
+
+class VideoAnalyzeOut(BaseModel):
+    media_id: str
+    report: dict
+
+
+class VideoEnhanceRequest(BaseModel):
+    """Real, file-level processing: colour/lighting (eq), loudness
+    (loudnorm), framing (crop/scale/pad) and optional caption burn-in.
+    Sliders run -10..10; ``auto_enhance`` applies mild defaults when all
+    sliders are at 0."""
+
+    normalize_audio: bool = False
+    auto_enhance: bool = True
+    brightness: int = Field(default=0, ge=-10, le=10)
+    contrast: int = Field(default=0, ge=-10, le=10)
+    saturation: int = Field(default=0, ge=-10, le=10)
+    framing: str = Field(default="none", pattern="^(none|16x9|9x16|1x1)$")
+    burn_captions: bool = False
+
+
+class CaptionsRequest(BaseModel):
+    transcript: str | None = Field(default=None, max_length=20000)
+    use_script: bool = False
+    media_id: str | None = None
+
+
+class VideoJobOut(BaseModel):
+    job_id: str
+    kind: str
+    status: str  # running | done | failed
+    phase: str
+    progress: float
+    result: dict | None = None
+    error: str | None = None
 
 
 class ApplicationStatusUpdate(BaseModel):

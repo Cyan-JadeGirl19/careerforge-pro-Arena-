@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.10.0 - 2026-08-25
+
+Video Studio production build (the main feature lands):
+
+- **Server-side media storage** — recordings/uploads are stored privately
+  against the application (DB-backed, survives Render's ephemeral disk).
+  Upload gate: purpose-scoped `media_use` consent **plus** an explicit
+  likeness confirmation (face/voice are yours or you have permission),
+  recorded on the video response.
+- **Quality checks (transparent, file-based)** — length vs target and
+  3-minute cap, resolution, frame rate, audio presence, loudness, pauses
+  (silence detection), lighting (luma). Pass/warn/fail with plain-language
+  tips; the report is stored with the file. No invented scores.
+- **Real enhancement** (bundled static ffmpeg, H.264/AAC output):
+  colour & lighting (eq), audio normalisation (loudnorm to -16 LUFS),
+  framing (16:9 letterbox, 9:16 vertical, 1:1 square), caption burn-in.
+  Runs as a background job so long renders never hit free-tier request
+  timeouts; the original file is never modified.
+- **Captions (WebVTT)** — built from the candidate's own transcript or
+  their script, timed proportionally across the measured duration,
+  previewable and downloadable, burnable into the video. Clearly labelled
+  as text-based timing, not speech recognition.
+- **Exports** — MP4 (H.264, faststart) conversion of WebM/MOV originals,
+  enhanced MP4, and MP3 audio extraction.
+- API: `media-upload`, `analyze`, `enhance`, `export-mp4`,
+  `export-audio`, `captions`, `download`, `delete`, `jobs/video/{id}`;
+  `VideoOut` now carries `media[]` and `likeness_consent`.
+- 119 API tests passing (6 new end-to-end tests run the real encode
+  pipeline: upload → quality → captions → 9:16 enhance with burned
+  captions → MP3 → MP4 conversion).
+
 ## 0.9.0 - 2026-08-24
 
 Skills & Salary + Portfolio Builder (Phase 3/4 completion):

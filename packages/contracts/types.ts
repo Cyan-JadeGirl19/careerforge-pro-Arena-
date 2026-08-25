@@ -217,6 +217,42 @@ export interface CoverLetter {
   created_at: string;
 }
 
+export interface VideoMedia {
+  id: string;
+  kind: "original" | "enhanced" | "captions" | "audio";
+  filename: string;
+  content_type: string;
+  size: number;
+  duration: number | null;
+  created_at: string;
+}
+
+export interface VideoQualityCheck {
+  id: string;
+  label: string;
+  status: "pass" | "warn" | "fail";
+  detail: string;
+  tip: string | null;
+}
+
+export interface VideoQualityReport {
+  summary: { ready: boolean; pass: number; warn: number; fail: number };
+  checks: VideoQualityCheck[];
+  probe: Record<string, unknown>;
+  generated_at: string;
+  note: string;
+}
+
+export interface VideoJob {
+  job_id: string;
+  kind: string;
+  status: "running" | "done" | "failed";
+  phase: string;
+  progress: number;
+  result: Record<string, unknown> | null;
+  error: string | null;
+}
+
 export interface VideoResponse {
   id: string;
   application_id: string;
@@ -231,6 +267,8 @@ export interface VideoResponse {
   media_status: "none" | "uploaded" | "ready";
   ai_disclosed: boolean;
   delete_media_after_export: boolean;
+  likeness_consent: boolean;
+  media: VideoMedia[];
   created_at: string;
   updated_at: string;
 }

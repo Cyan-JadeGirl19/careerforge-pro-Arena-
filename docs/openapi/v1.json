@@ -3,7 +3,7 @@
   "info": {
     "title": "CareerForge Pro API",
     "description": "CV-first career acceleration for South African remote work. Human-supervised: sensitive actions require explicit consent.",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "paths": {
     "/api/v1/health": {
@@ -1617,6 +1617,465 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/VideoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/videos/{video_id}/media-upload": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Upload Video Media",
+        "description": "Store a recording/upload against the video response (private).\n\nRequires the purpose-scoped ``media_use`` consent AND an explicit\nlikeness confirmation for this upload (face/voice are yours or you\nhave permission).",
+        "operationId": "upload_video_media_api_v1_videos__video_id__media_upload_post",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_video_media_api_v1_videos__video_id__media_upload_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/videos/{video_id}/media/{media_id}/analyze": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Analyze Video Media",
+        "description": "Run transparent quality checks (length, resolution, audio,\npauses, lighting) and store the report with the media.",
+        "operationId": "analyze_video_media_api_v1_videos__video_id__media__media_id__analyze_post",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          },
+          {
+            "name": "media_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Media Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoAnalyzeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/videos/{video_id}/media/{media_id}/enhance": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Enhance Video Media",
+        "description": "Process the file: colour/lighting, loudness, framing, optional\ncaption burn-in -> new H.264 MP4 artefact. Runs as a background job\n(free-tier HTTP responses time out); poll /jobs/video/{job_id}.",
+        "operationId": "enhance_video_media_api_v1_videos__video_id__media__media_id__enhance_post",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          },
+          {
+            "name": "media_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Media Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VideoEnhanceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoJobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/videos/{video_id}/media/{media_id}/export-mp4": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Export Mp4",
+        "description": "Re-encode an uploaded file to H.264 MP4 with no other changes\n(many application portals reject WebM/MOV). Background job.",
+        "operationId": "export_mp4_api_v1_videos__video_id__media__media_id__export_mp4_post",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          },
+          {
+            "name": "media_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Media Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoJobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/videos/{video_id}/media/{media_id}/export-audio": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Export Audio",
+        "description": "Extract the voice as an MP3 (fast enough to run inline).",
+        "operationId": "export_audio_api_v1_videos__video_id__media__media_id__export_audio_post",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          },
+          {
+            "name": "media_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Media Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/videos/{video_id}/captions": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Generate Captions",
+        "description": "Build a WebVTT caption file from the candidate's own text.\n\nTiming is proportional across the measured video duration - the UI\nsays so explicitly and the candidate reviews cues before export.\nThis is not speech recognition and never claims to be.",
+        "operationId": "generate_captions_api_v1_videos__video_id__captions_post",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/videos/{video_id}/media/{media_id}/download": {
+      "get": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Download Video Media",
+        "operationId": "download_video_media_api_v1_videos__video_id__media__media_id__download_get",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          },
+          {
+            "name": "media_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Media Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/videos/{video_id}/media/{media_id}": {
+      "delete": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Delete Video Media",
+        "operationId": "delete_video_media_api_v1_videos__video_id__media__media_id__delete",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          },
+          {
+            "name": "media_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Media Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/video/{job_id}": {
+      "get": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Video Job Status",
+        "operationId": "video_job_status_api_v1_jobs_video__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoJobOut"
                 }
               }
             }
@@ -4202,6 +4661,25 @@
         ],
         "title": "Body_upload_reference_document_api_v1_references__ref_id__documents_post"
       },
+      "Body_upload_video_media_api_v1_videos__video_id__media_upload_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "likeness_consent": {
+            "type": "boolean",
+            "title": "Likeness Consent",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_video_media_api_v1_videos__video_id__media_upload_post"
+      },
       "BuildMastersRequest": {
         "properties": {
           "role_focus": {
@@ -4220,6 +4698,40 @@
         },
         "type": "object",
         "title": "BuildMastersRequest"
+      },
+      "CaptionsRequest": {
+        "properties": {
+          "transcript": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript"
+          },
+          "use_script": {
+            "type": "boolean",
+            "title": "Use Script",
+            "default": false
+          },
+          "media_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Id"
+          }
+        },
+        "type": "object",
+        "title": "CaptionsRequest"
       },
       "CheckResult": {
         "properties": {
@@ -6866,6 +7378,25 @@
         ],
         "title": "ValidationError"
       },
+      "VideoAnalyzeOut": {
+        "properties": {
+          "media_id": {
+            "type": "string",
+            "title": "Media Id"
+          },
+          "report": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Report"
+          }
+        },
+        "type": "object",
+        "required": [
+          "media_id",
+          "report"
+        ],
+        "title": "VideoAnalyzeOut"
+      },
       "VideoCreate": {
         "properties": {
           "question": {
@@ -6930,6 +7461,161 @@
           "question"
         ],
         "title": "VideoCreate"
+      },
+      "VideoEnhanceRequest": {
+        "properties": {
+          "normalize_audio": {
+            "type": "boolean",
+            "title": "Normalize Audio",
+            "default": false
+          },
+          "auto_enhance": {
+            "type": "boolean",
+            "title": "Auto Enhance",
+            "default": true
+          },
+          "brightness": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": -10.0,
+            "title": "Brightness",
+            "default": 0
+          },
+          "contrast": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": -10.0,
+            "title": "Contrast",
+            "default": 0
+          },
+          "saturation": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": -10.0,
+            "title": "Saturation",
+            "default": 0
+          },
+          "framing": {
+            "type": "string",
+            "pattern": "^(none|16x9|9x16|1x1)$",
+            "title": "Framing",
+            "default": "none"
+          },
+          "burn_captions": {
+            "type": "boolean",
+            "title": "Burn Captions",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "VideoEnhanceRequest",
+        "description": "Real, file-level processing: colour/lighting (eq), loudness\n(loudnorm), framing (crop/scale/pad) and optional caption burn-in.\nSliders run -10..10; ``auto_enhance`` applies mild defaults when all\nsliders are at 0."
+      },
+      "VideoJobOut": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "phase": {
+            "type": "string",
+            "title": "Phase"
+          },
+          "progress": {
+            "type": "number",
+            "title": "Progress"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "kind",
+          "status",
+          "phase",
+          "progress"
+        ],
+        "title": "VideoJobOut"
+      },
+      "VideoMediaOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "filename",
+          "content_type",
+          "size",
+          "created_at"
+        ],
+        "title": "VideoMediaOut"
       },
       "VideoMediaUpdate": {
         "properties": {
@@ -7012,6 +7698,19 @@
           "delete_media_after_export": {
             "type": "boolean",
             "title": "Delete Media After Export"
+          },
+          "likeness_consent": {
+            "type": "boolean",
+            "title": "Likeness Consent",
+            "default": false
+          },
+          "media": {
+            "items": {
+              "$ref": "#/components/schemas/VideoMediaOut"
+            },
+            "type": "array",
+            "title": "Media",
+            "default": []
           },
           "created_at": {
             "type": "string",

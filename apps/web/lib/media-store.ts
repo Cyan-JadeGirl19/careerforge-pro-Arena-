@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Tiny IndexedDB store for recorded media (private by default, local to
- * this browser). Server-side encrypted storage lands with the media
- * storage phase; recordings are never uploaded without consent.
+ * Tiny IndexedDB store for local takes (private, local to this browser).
+ * The Video Studio's "Send to studio" flow uploads a take to the server
+ * (stored with the application) — only after the likeness consent tick.
  */
 const DB_NAME = "careerforge-media";
 const STORE = "recordings";

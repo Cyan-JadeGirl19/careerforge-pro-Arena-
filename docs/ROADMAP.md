@@ -41,9 +41,23 @@ request recorded responses), not a later-phase add-on. Video responses up to
 
 ## Phase 4 — Media and coaching
 
-- Voice application studio
-- Video recording and enhancement
-- Consent-based image/voice workflows
+- [x] Voice application studio (script from real CV, teleprompter, browser recording)
+- [x] Video recording and enhancement — **shipped 0.10.0**: server-side media
+  storage (DB-backed, survives ephemeral disks), transparent quality checks
+  (length, resolution, frame rate, audio presence/level, pauses, lighting),
+  real ffmpeg enhancement (colour/lighting via eq, loudness via loudnorm,
+  framing 16:9 / 9:16 / 1:1, caption burn-in), WebVTT captions from the
+  candidate's own text (proportional timing, not speech recognition),
+  MP4 (H.264/AAC faststart) + MP3 exports, background jobs to stay under
+  free-tier timeouts
+- [x] Consent-based media workflow — purpose-scoped `media_use` consent +
+  per-upload likeness confirmation (face/voice are yours or you have
+  permission), recorded on the video response
+- [ ] Approved headshot as thumbnail/intro card/profile panel
+- [ ] Trimming in the studio (re-encode-based, next iteration)
+- [ ] Background replacement (needs on-device segmentation model)
+- [ ] Real speech-to-text caption alignment (currently: proportional
+  timing from provided text, clearly labelled)
 - Interview coach
 - Portfolio builder
 

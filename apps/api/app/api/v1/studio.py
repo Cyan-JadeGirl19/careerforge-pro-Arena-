@@ -3,18 +3,26 @@
 This is where "upload your CV and the program does the rest" lives:
 ``auto-pipeline`` turns a CV + job descriptions into a complete,
 reviewable application package in one call.
+
+Video media (upload / enhance / quality / captions / export) lives here
+too. Processing is real file-level work (ffmpeg): nothing is faked, and
+every artefact is stored against the video response for download.
 """
 import json
+import re
 import uuid
+from contextlib import nullcontext
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ... import builders, roles, video, writing
+from ... import builders, ffmpegx, media_jobs as jobs, quality, roles, video, writing
+from ...captions import transcript_to_cues, cues_to_vtt
 from ...content import CvContent
 from ...consents import get_active_consent, require_consent
-from ...db import get_db
+from ...db import SessionLocal, get_db
 from ...models import (
     Application,
     CoverLetter,
@@ -23,6 +31,7 @@ from ...models import (
     JobDescription,
     Profile,
     TailoredCv,
+    VideoMedia,
     VideoResponse,
 )
 from ...parsing import ParsedCv
@@ -32,10 +41,15 @@ from ...schemas import (
     ApplicationStatusUpdate,
     AutoPipelineOut,
     AutoPipelineRequest,
+    CaptionsRequest,
     CoverLetterCreate,
     CoverLetterOut,
     RoleRecommendationOut,
+    VideoAnalyzeOut,
     VideoCreate,
+    VideoEnhanceRequest,
+    VideoJobOut,
+    VideoMediaOut,
     VideoMediaUpdate,
     VideoOut,
 )
@@ -151,6 +165,8 @@ def _video_out(v: VideoResponse) -> VideoOut:
         media_status=v.media_status,
         ai_disclosed=v.ai_disclosed,
         delete_media_after_export=v.delete_media_after_export,
+        likeness_consent=bool(v.likeness_consent),
+        media=[_media_out(m) for m in v.media],
         created_at=v.created_at,
         updated_at=v.updated_at,
     )
@@ -423,6 +439,546 @@ def update_video_media(
     db.commit()
     db.refresh(v)
     return _video_out(v)
+
+
+# --- video media: upload, enhance, quality, captions, exports ------------------
+
+
+def _media_out(m: VideoMedia) -> VideoMediaOut:
+    duration: float | None = None
+    if m.probe_json:
+        try:
+            duration = json.loads(m.probe_json).get("duration")
+        except json.JSONDecodeError:
+            duration = None
+    return VideoMediaOut(
+        id=m.id,
+        kind=m.kind,
+        filename=m.filename,
+        content_type=m.content_type,
+        size=m.size,
+        duration=duration,
+        created_at=m.created_at,
+    )
+
+
+def get_media_or_404(db: Session, video: VideoResponse, media_id: str) -> VideoMedia:
+    m = db.get(VideoMedia, media_id)
+    if m is None or m.video_response_id != video.id:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "MEDIA_NOT_FOUND", "message": "No media with that id."},
+        )
+    return m
+
+
+def _suffix_for(m: VideoMedia) -> str:
+    if m.kind == "captions":
+        return ".vtt"
+    if m.kind == "audio":
+        return ".mp3"
+    ct = m.content_type or ""
+    if "webm" in ct:
+        return ".webm"
+    if "quicktime" in ct:
+        return ".mov"
+    return ".mp4"
+
+
+def _safe_filename(name: str) -> str:
+    return re.sub(r"[^\w.\- ]", "_", name)[:200] or "file"
+
+
+def _run_quality(m: VideoMedia, target_seconds: int | None = None) -> dict:
+    with ffmpegx.temp_media(m.data, suffix=_suffix_for(m)) as path:
+        probe = ffmpegx.probe_path(path)
+        if probe.audio_codec:
+            audio = ffmpegx.analyze_audio(path)
+            silences = ffmpegx.detect_silences(path)
+        else:
+            audio = {"mean_volume": None, "max_volume": None}
+            silences = []
+        lighting = ffmpegx.measure_lighting(path)
+    return quality.build_report(probe, audio, silences, lighting, target_seconds)
+
+
+@router.post("/videos/{video_id}/media-upload", response_model=VideoOut, status_code=201)
+def upload_video_media(
+    video_id: str,
+    file: UploadFile = File(...),
+    likeness_consent: bool = Form(False),
+    db: Session = Depends(get_db),
+) -> VideoOut:
+    """Store a recording/upload against the video response (private).
+
+    Requires the purpose-scoped ``media_use`` consent AND an explicit
+    likeness confirmation for this upload (face/voice are yours or you
+    have permission).
+    """
+    v = get_video_or_404(db, video_id)
+    require_consent(db, v.profile_id, "media_use")
+    if not likeness_consent:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "LIKENESS_CONSENT_REQUIRED",
+                "message": "Confirm the face and voice in this video are yours "
+                "(or you have permission to use them) before uploading.",
+            },
+        )
+    ct = (file.content_type or "").lower()
+    if ct not in ffmpegx.ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail={
+                "code": "UNSUPPORTED_MEDIA_TYPE",
+                "message": f"Unsupported file type '{ct}'. Upload MP4, WebM, MOV or M4V.",
+            },
+        )
+    chunks: list[bytes] = []
+    size = 0
+    while True:
+        chunk = file.file.read(1024 * 1024)
+        if not chunk:
+            break
+        size += len(chunk)
+        if size > ffmpegx.MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail={"code": "MEDIA_TOO_LARGE", "message": "File exceeds the 150 MB limit."},
+            )
+        chunks.append(chunk)
+    data = b"".join(chunks)
+    if len(data) < 1024:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "EMPTY_MEDIA", "message": "That file is too small to be a video."},
+        )
+    try:
+        probe = ffmpegx.probe_media(data, suffix=_suffix_for_probe(ct))
+    except RuntimeError:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "UNREADABLE_MEDIA",
+                "message": "That file could not be read as a video. Try re-exporting it as MP4.",
+            },
+        )
+    if not probe.duration or probe.duration < 2 or not probe.video_codec:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "UNREADABLE_MEDIA",
+                "message": "No usable video stream found in that file.",
+            },
+        )
+    m = VideoMedia(
+        id=str(uuid.uuid4()),
+        video_response_id=v.id,
+        kind="original",
+        filename=(file.filename or "recording")[:300],
+        content_type=ct,
+        size=size,
+        data=data,
+        probe_json=json.dumps(probe.to_dict()),
+    )
+    db.add(m)
+    v.media_status = "uploaded"
+    v.likeness_consent = True
+    db.commit()
+    db.refresh(v)
+    return _video_out(v)
+
+
+def _suffix_for_probe(ct: str) -> str:
+    if "webm" in ct:
+        return ".webm"
+    if "quicktime" in ct:
+        return ".mov"
+    return ".mp4"
+
+
+@router.post("/videos/{video_id}/media/{media_id}/analyze", response_model=VideoAnalyzeOut)
+def analyze_video_media(
+    video_id: str, media_id: str, db: Session = Depends(get_db)
+) -> VideoAnalyzeOut:
+    """Run transparent quality checks (length, resolution, audio,
+    pauses, lighting) and store the report with the media."""
+    v = get_video_or_404(db, video_id)
+    m = get_media_or_404(db, v, media_id)
+    if m.kind not in ffmpegx.VIDEO_KINDS:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "NOT_A_VIDEO", "message": "Quality checks apply to video files."},
+        )
+    try:
+        report = _run_quality(m, v.target_seconds)
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "ANALYSIS_FAILED", "message": str(exc)[:300]},
+        )
+    m.quality_json = json.dumps(report)
+    db.commit()
+    return VideoAnalyzeOut(media_id=m.id, report=report)
+
+
+@router.post(
+    "/videos/{video_id}/media/{media_id}/enhance",
+    response_model=VideoJobOut,
+    status_code=202,
+)
+def enhance_video_media(
+    video_id: str,
+    media_id: str,
+    payload: VideoEnhanceRequest,
+    db: Session = Depends(get_db),
+) -> VideoJobOut:
+    """Process the file: colour/lighting, loudness, framing, optional
+    caption burn-in -> new H.264 MP4 artefact. Runs as a background job
+    (free-tier HTTP responses time out); poll /jobs/video/{job_id}."""
+    v = get_video_or_404(db, video_id)
+    m = get_media_or_404(db, v, media_id)
+    if m.kind not in ffmpegx.VIDEO_KINDS:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "NOT_A_VIDEO", "message": "Enhance applies to video files."},
+        )
+    if not v.likeness_consent:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "LIKENESS_CONSENT_REQUIRED",
+                "message": "Confirm the face and voice are yours before processing.",
+            },
+        )
+    if payload.burn_captions:
+        cap = db.scalars(
+            select(VideoMedia)
+            .where(
+                VideoMedia.video_response_id == v.id,
+                VideoMedia.kind == "captions",
+            )
+            .order_by(VideoMedia.created_at.desc())
+        ).first()
+        if cap is None:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "NO_CAPTIONS", "message": "Generate captions first."},
+            )
+    job = jobs.submit(
+        "enhance", _enhance_worker, v.id, m.id, payload.model_dump()
+    )
+    return VideoJobOut(**job.to_out())
+
+
+def _enhance_worker(job: jobs.Job, video_id: str, media_id: str, params: dict) -> None:
+    db = SessionLocal()
+    try:
+        job.phase = "reading media"
+        job.progress = 0.05
+        v = db.get(VideoResponse, video_id)
+        m = db.get(VideoMedia, media_id)
+        if v is None or m is None:
+            raise RuntimeError("Video or media no longer exists.")
+        b, c, s = int(params.get("brightness", 0)), int(params.get("contrast", 0)), int(params.get("saturation", 0))
+        if params.get("auto_enhance") and not (b or c or s):
+            b, c, s = 2, 4, 6  # mild, safe defaults
+        vfilter = ffmpegx.build_video_filters(
+            brightness=b, contrast=c, saturation=s, framing=params.get("framing", "none")
+        )
+        afilter = ffmpegx.build_audio_filters(bool(params.get("normalize_audio")))
+
+        cap: VideoMedia | None = None
+        if params.get("burn_captions"):
+            cap = db.scalars(
+                select(VideoMedia)
+                .where(VideoMedia.video_response_id == v.id, VideoMedia.kind == "captions")
+                .order_by(VideoMedia.created_at.desc())
+            ).first()
+            if cap is None:
+                raise RuntimeError("No captions found. Generate captions first.")
+
+        job.phase = "encoding"
+        job.progress = 0.4
+        with ffmpegx.temp_media(m.data, suffix=_suffix_for(m)) as src:
+            probe = ffmpegx.probe_path(src)
+            vtt_cm = (
+                ffmpegx.temp_media(cap.data, suffix=".vtt") if cap is not None
+                else nullcontext(None)
+            )
+            with vtt_cm as vtt_path, ffmpegx.temp_out(".mp4") as dst:
+                ffmpegx.reencode_mp4(
+                    src,
+                    dst,
+                    vfilter=vfilter,
+                    afilter=afilter,
+                    burn_vtt=vtt_path if cap is not None else None,
+                    has_audio=bool(probe.audio_codec),
+                )
+                out = dst.read_bytes()
+
+        job.phase = "analysing result"
+        job.progress = 0.85
+        stem = re.sub(r"\.[a-z0-9]+$", "", m.filename) or "response"
+        new_m = VideoMedia(
+            id=str(uuid.uuid4()),
+            video_response_id=v.id,
+            kind="enhanced",
+            filename=f"{stem}-enhanced.mp4",
+            content_type="video/mp4",
+            size=len(out),
+            data=out,
+        )
+        db.add(new_m)
+        db.flush()
+        with ffmpegx.temp_media(out) as p2:
+            probe2 = ffmpegx.probe_path(p2)
+            if probe2.audio_codec:
+                audio2 = ffmpegx.analyze_audio(p2)
+                sil2 = ffmpegx.detect_silences(p2)
+            else:
+                audio2 = {"mean_volume": None, "max_volume": None}
+                sil2 = []
+            light2 = ffmpegx.measure_lighting(p2)
+        report = quality.build_report(probe2, audio2, sil2, light2, v.target_seconds)
+        new_m.probe_json = json.dumps(probe2.to_dict())
+        new_m.quality_json = json.dumps(report)
+        v.media_status = "ready"
+        db.commit()
+        db.refresh(new_m)
+        job.progress = 1.0
+        job.result = {"media_id": new_m.id, "report": report}
+    finally:
+        db.close()
+
+
+@router.post(
+    "/videos/{video_id}/media/{media_id}/export-mp4",
+    response_model=VideoJobOut,
+    status_code=202,
+)
+def export_mp4(
+    video_id: str, media_id: str, db: Session = Depends(get_db)
+) -> VideoJobOut:
+    """Re-encode an uploaded file to H.264 MP4 with no other changes
+    (many application portals reject WebM/MOV). Background job."""
+    v = get_video_or_404(db, video_id)
+    m = get_media_or_404(db, v, media_id)
+    if m.kind == "enhanced" and m.content_type == "video/mp4":
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "ALREADY_MP4", "message": "That file is already MP4 - just download it."},
+        )
+    if m.kind not in ffmpegx.VIDEO_KINDS:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "NOT_A_VIDEO", "message": "MP4 export applies to video files."},
+        )
+    job = jobs.submit("export-mp4", _export_mp4_worker, v.id, m.id)
+    return VideoJobOut(**job.to_out())
+
+
+def _export_mp4_worker(job: jobs.Job, video_id: str, media_id: str) -> None:
+    db = SessionLocal()
+    try:
+        job.phase = "reading media"
+        job.progress = 0.05
+        v = db.get(VideoResponse, video_id)
+        m = db.get(VideoMedia, media_id)
+        if v is None or m is None:
+            raise RuntimeError("Video or media no longer exists.")
+        job.phase = "encoding"
+        job.progress = 0.4
+        with ffmpegx.temp_media(m.data, suffix=_suffix_for(m)) as src:
+            probe = ffmpegx.probe_path(src)
+            with ffmpegx.temp_out(".mp4") as dst:
+                ffmpegx.reencode_mp4(
+                    src, dst, has_audio=bool(probe.audio_codec)
+                )
+                out = dst.read_bytes()
+        job.phase = "analysing result"
+        job.progress = 0.85
+        stem = re.sub(r"\.[a-z0-9]+$", "", m.filename) or "response"
+        new_m = VideoMedia(
+            id=str(uuid.uuid4()),
+            video_response_id=v.id,
+            kind="enhanced",
+            filename=f"{stem}-mp4.mp4",
+            content_type="video/mp4",
+            size=len(out),
+            data=out,
+        )
+        db.add(new_m)
+        db.flush()
+        with ffmpegx.temp_media(out) as p2:
+            probe2 = ffmpegx.probe_path(p2)
+            if probe2.audio_codec:
+                audio2 = ffmpegx.analyze_audio(p2)
+                sil2 = ffmpegx.detect_silences(p2)
+            else:
+                audio2 = {"mean_volume": None, "max_volume": None}
+                sil2 = []
+            light2 = ffmpegx.measure_lighting(p2)
+        report = quality.build_report(probe2, audio2, sil2, light2, v.target_seconds)
+        new_m.probe_json = json.dumps(probe2.to_dict())
+        new_m.quality_json = json.dumps(report)
+        db.commit()
+        db.refresh(new_m)
+        job.progress = 1.0
+        job.result = {"media_id": new_m.id, "report": report}
+    finally:
+        db.close()
+
+
+@router.post(
+    "/videos/{video_id}/media/{media_id}/export-audio",
+    response_model=VideoOut,
+    status_code=201,
+)
+def export_audio(
+    video_id: str, media_id: str, db: Session = Depends(get_db)
+) -> VideoOut:
+    """Extract the voice as an MP3 (fast enough to run inline)."""
+    v = get_video_or_404(db, video_id)
+    m = get_media_or_404(db, v, media_id)
+    if m.kind not in ffmpegx.VIDEO_KINDS:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "NOT_A_VIDEO", "message": "Audio export applies to video files."},
+        )
+    stem = re.sub(r"\.[a-z0-9]+$", "", m.filename) or "response"
+    with ffmpegx.temp_media(m.data, suffix=_suffix_for(m)) as src:
+        probe = ffmpegx.probe_path(src)
+        if not probe.audio_codec:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "NO_AUDIO", "message": "That file has no audio track."},
+            )
+        with ffmpegx.temp_out(".mp3") as dst:
+            ffmpegx.extract_mp3(src, dst)
+            out = dst.read_bytes()
+    new_m = VideoMedia(
+        id=str(uuid.uuid4()),
+        video_response_id=v.id,
+        kind="audio",
+        filename=f"{stem}-audio.mp3",
+        content_type="audio/mpeg",
+        size=len(out),
+        data=out,
+    )
+    db.add(new_m)
+    db.commit()
+    db.refresh(v)
+    return _video_out(v)
+
+
+@router.post("/videos/{video_id}/captions", response_model=VideoOut, status_code=201)
+def generate_captions(
+    video_id: str, payload: CaptionsRequest, db: Session = Depends(get_db)
+) -> VideoOut:
+    """Build a WebVTT caption file from the candidate's own text.
+
+    Timing is proportional across the measured video duration - the UI
+    says so explicitly and the candidate reviews cues before export.
+    This is not speech recognition and never claims to be.
+    """
+    v = get_video_or_404(db, video_id)
+    text = (payload.transcript or "").strip()
+    if not text and payload.use_script:
+        text = (v.script_text or "").strip()
+    if not text:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "NO_TRANSCRIPT",
+                "message": "Paste what you say in the video, or generate a script "
+                "and tick 'use my script'.",
+            },
+        )
+    m: VideoMedia | None = None
+    if payload.media_id:
+        m = get_media_or_404(db, v, payload.media_id)
+        if m.kind not in ffmpegx.VIDEO_KINDS:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "NOT_A_VIDEO", "message": "media_id must be a video file."},
+            )
+    else:
+        m = db.scalars(
+            select(VideoMedia)
+            .where(
+                VideoMedia.video_response_id == v.id,
+                VideoMedia.kind.in_(list(ffmpegx.VIDEO_KINDS)),
+            )
+            .order_by(VideoMedia.created_at.desc())
+        ).first()
+    duration: float | None = None
+    if m is not None and m.probe_json:
+        try:
+            duration = json.loads(m.probe_json).get("duration")
+        except json.JSONDecodeError:
+            duration = None
+    estimated = duration is None
+    if estimated:
+        duration = float(v.target_seconds or 60)
+    try:
+        cues = transcript_to_cues(text, duration)
+        vtt = cues_to_vtt(cues)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail={"code": "BAD_TRANSCRIPT", "message": str(exc)})
+    cap = VideoMedia(
+        id=str(uuid.uuid4()),
+        video_response_id=v.id,
+        kind="captions",
+        filename="captions.vtt",
+        content_type="text/vtt",
+        size=len(vtt.encode("utf-8")),
+        data=vtt.encode("utf-8"),
+        probe_json=json.dumps(
+            {"duration": duration, "cues": len(cues), "estimated_timing": estimated}
+        ),
+    )
+    db.add(cap)
+    db.commit()
+    db.refresh(v)
+    return _video_out(v)
+
+
+@router.get("/videos/{video_id}/media/{media_id}/download")
+def download_video_media(
+    video_id: str, media_id: str, db: Session = Depends(get_db)
+) -> Response:
+    v = get_video_or_404(db, video_id)
+    m = get_media_or_404(db, v, media_id)
+    return Response(
+        content=m.data,
+        media_type=m.content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{_safe_filename(m.filename)}"'
+        },
+    )
+
+
+@router.delete("/videos/{video_id}/media/{media_id}", status_code=204)
+def delete_video_media(
+    video_id: str, media_id: str, db: Session = Depends(get_db)
+) -> None:
+    v = get_video_or_404(db, video_id)
+    m = get_media_or_404(db, v, media_id)
+    db.delete(m)
+    db.commit()
+
+
+@router.get("/jobs/video/{job_id}", response_model=VideoJobOut)
+def video_job_status(job_id: str) -> VideoJobOut:
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "JOB_NOT_FOUND", "message": "Job not found (it may have expired)."},
+        )
+    return VideoJobOut(**job.to_out())
 
 
 # --- auto pipeline ---------------------------------------------------------------

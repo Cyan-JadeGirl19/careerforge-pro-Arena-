@@ -6,7 +6,13 @@ import { useSession } from "../../../lib/session";
 import { deleteRecording, listRecordings, saveRecording } from "../../../lib/media-store";
 import Recorder from "../../../components/recorder";
 import Teleprompter from "../../../components/teleprompter";
-import type { Application, VideoResponse } from "../../../../../packages/contracts/types";
+import type {
+  Application,
+  VideoJob,
+  VideoMedia,
+  VideoQualityReport,
+  VideoResponse,
+} from "../../../../../packages/contracts/types";
 
 const LENGTHS = [30, 60, 90, 120, 180] as const;
 const LENGTH_LABEL: Record<number, string> = {
@@ -27,6 +33,25 @@ const QUESTIONS = [
   "Record a short sales pitch.",
 ];
 
+const FRAMINGS = [
+  { value: "none", label: "Keep original size" },
+  { value: "16x9", label: "16:9 landscape (standard)" },
+  { value: "9x16", label: "9:16 vertical (phone)" },
+  { value: "1x1", label: "1:1 square" },
+];
+
+function fmtSize(n: number): string {
+  return n >= 1024 * 1024
+    ? `${(n / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(n / 1024))} KB`;
+}
+
+const STATUS_STYLE: Record<string, { bg: string; fg: string; glyph: string }> = {
+  pass: { bg: "#e8f6ee", fg: "#1d7a46", glyph: "✓" },
+  warn: { bg: "#fff6e0", fg: "#9a6a08", glyph: "!" },
+  fail: { bg: "#fdecec", fg: "#b03030", glyph: "✕" },
+};
+
 export default function VideoStudioPage() {
   const { session } = useSession();
   const [apps, setApps] = useState<Application[]>([]);
@@ -41,9 +66,28 @@ export default function VideoStudioPage() {
   const [recordings, setRecordings] = useState<Array<{ id: string; blob: Blob; seconds: number; createdAt: string }>>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewSeconds, setPreviewSeconds] = useState(0);
+  const [lastTake, setLastTake] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState<string | null>(null);
+
+  // --- studio (server-side) state ---
+  const [consent, setConsent] = useState(false);
+  const [serverBusy, setServerBusy] = useState<string | null>(null);
+  const [jobNote, setJobNote] = useState<string | null>(null);
+  const [report, setReport] = useState<{ mediaId: string; report: VideoQualityReport } | null>(null);
+  const [capText, setCapText] = useState("");
+  const [capPreview, setCapPreview] = useState<Record<string, string>>({});
+  const [enh, setEnh] = useState({
+    auto: true,
+    normalize: true,
+    brightness: 0,
+    contrast: 0,
+    saturation: 0,
+    framing: "none" as "none" | "16x9" | "9x16" | "1x1",
+    burn: false,
+  });
+  const [enhanceSource, setEnhanceSource] = useState<string>("");
 
   const loadRecordings = useCallback(async (applicationId?: string) => {
     try {
@@ -80,8 +124,10 @@ export default function VideoStudioPage() {
     setApp(a);
     setError(null);
     setSavedNote(null);
+    setReport(null);
     setVideo(a?.videos[0] ?? null);
     setScript(a?.videos[0]?.script_text ?? "");
+    setEnhanceSource("");
     await loadRecordings(id);
   };
 
@@ -135,6 +181,7 @@ export default function VideoStudioPage() {
     const url = URL.createObjectURL(blob);
     setPreviewUrl(url);
     setPreviewSeconds(seconds);
+    setLastTake(blob);
     const id = `rec-${Date.now()}`;
     try {
       await saveRecording({
@@ -151,7 +198,7 @@ export default function VideoStudioPage() {
           Math.abs(seconds - targetSeconds) <= targetSeconds * 0.25
             ? "Length looks right."
             : `It's ${Math.round(seconds)}s vs your ${targetSeconds}s target — you can re-record or trim later.`
-        }`,
+        } ${"Send it to the studio below to enhance, caption and export it."}`,
       );
     } catch {
       setSavedNote("Recording captured in this session; could not persist to local storage.");
@@ -172,6 +219,203 @@ export default function VideoStudioPage() {
     await loadRecordings(app?.id);
   };
 
+  // --- studio helpers ---
+
+  const runJob = async (jobId: string): Promise<Record<string, unknown> | null> => {
+    for (let i = 0; i < 300; i++) {
+      const st: VideoJob = await api.getVideoJob(jobId);
+      if (st.status !== "running") {
+        setJobNote(null);
+        if (st.status === "failed") throw new Error(st.error || "Processing failed.");
+        return st.result;
+      }
+      setJobNote(`${st.phase}… ${Math.round(st.progress * 100)}%`);
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    setJobNote(null);
+    throw new Error("Still processing — give it a minute, then check back.");
+  };
+
+  const refreshVideo = async () => {
+    if (!app) return;
+    const fresh = await api.getApplication(app.id);
+    setApp(fresh);
+    setApps((all) => all.map((a) => (a.id === fresh.id ? fresh : a)));
+    setVideo(fresh.videos.find((v) => v.id === video?.id) ?? fresh.videos[0] ?? null);
+  };
+
+  const ensureVideo = async (): Promise<string> => {
+    if (video) return video.id;
+    if (!app) throw new Error("Pick an application first.");
+    const v = await api.createVideo(app.id, {
+      question: question.trim() || "Why are you a good fit for this role?",
+      key_points: keyPoints.split(",").map((s) => s.trim()).filter(Boolean),
+      exclusions: exclusions.split(",").map((s) => s.trim()).filter(Boolean),
+      tone,
+      target_seconds: targetSeconds,
+      mode: "recording",
+    });
+    setVideo(v);
+    setApp((a) => (a ? { ...a, videos: [...a.videos, v] } : a));
+    return v.id;
+  };
+
+  const sendToStudio = async (blob: Blob, filename: string) => {
+    if (!consent) {
+      setError("Tick the consent first — we need your confirmation that the face and voice are yours (or you have permission).");
+      return;
+    }
+    setServerBusy("upload");
+    setError(null);
+    setSavedNote(null);
+    try {
+      const vid = await ensureVideo();
+      const v = await api.uploadVideoMedia(vid, blob, filename, consent);
+      setVideo(v);
+      await refreshVideo();
+      setReport(null);
+      setSavedNote("Uploaded and stored privately with this application. Run the quality check, then enhance and export.");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Upload failed.");
+    } finally {
+      setServerBusy(null);
+    }
+  };
+
+  const onFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    void sendToStudio(f, f.name || "video.mp4");
+  };
+
+  const doAnalyze = async (mediaId: string) => {
+    if (!video) return;
+    setServerBusy("analyze");
+    setError(null);
+    try {
+      const res = await api.analyzeVideoMedia(video.id, mediaId);
+      setReport({ mediaId, report: res.report });
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Quality check failed.");
+    } finally {
+      setServerBusy(null);
+    }
+  };
+
+  const doEnhance = async () => {
+    if (!video || !enhanceSource) return;
+    setServerBusy("enhance");
+    setError(null);
+    try {
+      const job = await api.enhanceVideoMedia(video.id, enhanceSource, {
+        auto_enhance: enh.auto,
+        normalize_audio: enh.normalize,
+        brightness: enh.brightness,
+        contrast: enh.contrast,
+        saturation: enh.saturation,
+        framing: enh.framing,
+        burn_captions: enh.burn,
+      });
+      const result = await runJob(job.job_id);
+      await refreshVideo();
+      if (result && typeof result.media_id === "string" && result.report) {
+        setReport({
+          mediaId: result.media_id as string,
+          report: result.report as VideoQualityReport,
+        });
+      }
+      setSavedNote("Enhanced MP4 ready — review the preview and quality check, then download.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Enhance failed.");
+    } finally {
+      setServerBusy(null);
+    }
+  };
+
+  const doExportMp4 = async (mediaId: string) => {
+    if (!video) return;
+    setServerBusy("mp4");
+    setError(null);
+    try {
+      const job = await api.exportVideoMp4(video.id, mediaId);
+      await runJob(job.job_id);
+      await refreshVideo();
+      setSavedNote("MP4 conversion ready in your files below.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "MP4 conversion failed.");
+    } finally {
+      setServerBusy(null);
+    }
+  };
+
+  const doExportAudio = async (mediaId: string) => {
+    if (!video) return;
+    setServerBusy("audio");
+    setError(null);
+    try {
+      const v = await api.exportVideoAudio(video.id, mediaId);
+      setVideo(v);
+      await refreshVideo();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Audio export failed.");
+    } finally {
+      setServerBusy(null);
+    }
+  };
+
+  const doCaptions = async () => {
+    if (!video) return;
+    setServerBusy("captions");
+    setError(null);
+    try {
+      const v = await api.generateVideoCaptions(video.id, {
+        transcript: capText,
+        use_script: !capText.trim(),
+      });
+      setVideo(v);
+      await refreshVideo();
+      const cap = (v.media ?? []).find((m) => m.kind === "captions");
+      if (cap) {
+        const txt = await fetch(api.videoMediaUrl(video.id, cap.id)).then((r) => r.text());
+        setCapPreview((p) => ({ ...p, [cap.id]: txt }));
+      }
+      setSavedNote("Captions built from your text (timed proportionally — review before you send).");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not build captions.");
+    } finally {
+      setServerBusy(null);
+    }
+  };
+
+  const doDeleteMedia = async (mediaId: string) => {
+    if (!video) return;
+    setServerBusy("delete");
+    try {
+      await api.deleteVideoMedia(video.id, mediaId);
+      if (report?.mediaId === mediaId) setReport(null);
+      await refreshVideo();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Delete failed.");
+    } finally {
+      setServerBusy(null);
+    }
+  };
+
+  const showCapPreview = async (mediaId: string) => {
+    if (!video || capPreview[mediaId]) return;
+    const txt = await fetch(api.videoMediaUrl(video.id, mediaId)).then((r) => r.text());
+    setCapPreview((p) => ({ ...p, [mediaId]: txt }));
+  };
+
+  const media: VideoMedia[] = video?.media ?? [];
+  const videoMedia = media.filter((m) => m.kind === "original" || m.kind === "enhanced");
+  const hasCaptions = media.some((m) => m.kind === "captions");
+  const effectiveSource =
+    enhanceSource && videoMedia.some((m) => m.id === enhanceSource)
+      ? enhanceSource
+      : videoMedia[videoMedia.length - 1]?.id ?? "";
+
   if (!session) return null;
 
   return (
@@ -180,8 +424,9 @@ export default function VideoStudioPage() {
       <h1 style={{ fontSize: 24, margin: "6px 0 4px" }}>Recorded responses, done well</h1>
       <p className="muted" style={{ margin: "0 0 18px" }}>
         Paste the employer's exact question, tell the program what to include, and get a natural
-        script. Record with the teleprompter — 30 seconds up to 3 minutes. Each question gets its
-        own saved response.
+        script. Record with the teleprompter — 30 seconds up to 3 minutes — then send it to the
+        studio to check quality, enhance (colour, audio, framing), caption and export as MP4 or MP3.
+        Each question gets its own saved response.
       </p>
       {error && <div className="alert error">{error}</div>}
       {savedNote && <div className="alert ok">{savedNote}</div>}
@@ -283,7 +528,7 @@ export default function VideoStudioPage() {
             <h3>3 · Record</h3>
             <p className="muted">
               Light on your face, quiet space, look at the camera. As many takes as you like — the
-              take never leaves this browser until you choose to download it.
+              take stays in this browser until you send it to the studio.
             </p>
             <Recorder onRecording={onRecording} />
             {previewUrl && (
@@ -291,12 +536,275 @@ export default function VideoStudioPage() {
                 <a className="btn" href={previewUrl} download={`response-${targetSeconds}s.webm`}>
                   Download this take ({Math.round(previewSeconds)}s)
                 </a>
+                {lastTake && (
+                  <button
+                    className="btn secondary"
+                    onClick={() => sendToStudio(lastTake, `take-${Math.round(previewSeconds)}s.webm`)}
+                    disabled={serverBusy !== null}
+                  >
+                    {serverBusy === "upload" ? "Uploading…" : "Send this take to the studio →"}
+                  </button>
+                )}
               </div>
             )}
           </div>
 
           <div className="card">
+            <h3>4 · Studio — quality check, enhance & export</h3>
+            <p className="muted">
+              Enhancement is real file processing on <b>your own footage</b>: colour/lighting,
+              audio level, framing and captions. CareerForge Pro never creates a synthetic face or
+              voice. Captions are timed from the text you provide (not speech recognition) — review
+              them before you send. Files are stored privately with this application.
+            </p>
+
+            <label style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "10px 0", fontSize: 13.5, lineHeight: 1.45 }}>
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                style={{ marginTop: 3 }}
+              />
+              <span>
+                <b>Consent:</b> I confirm the face and voice in this video are mine, or I have
+                permission to use this material. Required before upload and export.
+              </span>
+            </label>
+
+            <div className="row" style={{ flexWrap: "wrap" }}>
+              <label className="btn secondary" style={{ cursor: "pointer" }}>
+                {serverBusy === "upload" ? "Uploading…" : "Upload a video file…"}
+                <input type="file" accept="video/mp4,video/webm,video/quicktime,video/x-m4v" onChange={onFilePick} hidden disabled={serverBusy !== null || !consent} />
+              </label>
+              <span className="muted" style={{ fontSize: 12.5 }}>
+                MP4, WebM or MOV, up to 150 MB. Or use “Send this take to the studio” above after recording.
+              </span>
+            </div>
+
+            {media.length > 0 && (
+              <>
+                <h4 style={{ margin: "18px 0 8px", fontSize: 14 }}>Your files</h4>
+                <div className="stack">
+                  {media.map((m) => (
+                    <div className="item" key={m.id}>
+                      {(m.kind === "original" || m.kind === "enhanced") && (
+                        <video src={api.videoMediaUrl(video!.id, m.id)} controls style={{ width: "100%", maxWidth: 420, borderRadius: 8, background: "#101216", marginBottom: 8 }} />
+                      )}
+                      <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
+                        <span
+                          style={{
+                            fontSize: 11.5,
+                            fontWeight: 700,
+                            padding: "3px 8px",
+                            borderRadius: 999,
+                            background: m.kind === "enhanced" ? "#e8f0fe" : "#eef0f3",
+                            color: m.kind === "enhanced" ? "#1a56b0" : "#444",
+                            textTransform: "capitalize",
+                          }}
+                        >
+                          {m.kind}
+                        </span>
+                        <span className="muted" style={{ fontSize: 12.5 }}>
+                          {m.filename} · {fmtSize(m.size)}
+                          {m.duration ? ` · ${Math.round(m.duration)}s` : ""}
+                        </span>
+                        <span style={{ flex: 1 }} />
+                        {(m.kind === "original" || m.kind === "enhanced") && (
+                          <>
+                            <button className="btn secondary" onClick={() => doAnalyze(m.id)} disabled={serverBusy !== null}>
+                              {serverBusy === "analyze" ? "Checking…" : "Quality check"}
+                            </button>
+                            {m.kind === "original" && (
+                              <button className="btn secondary" onClick={() => doExportMp4(m.id)} disabled={serverBusy !== null}>
+                                {serverBusy === "mp4" ? "Converting…" : "Convert to MP4"}
+                              </button>
+                            )}
+                            <button className="btn secondary" onClick={() => doExportAudio(m.id)} disabled={serverBusy !== null}>
+                              {serverBusy === "audio" ? "Working…" : "MP3 audio"}
+                            </button>
+                          </>
+                        )}
+                        {m.kind === "captions" && (
+                          <>
+                            <button className="btn secondary" onClick={() => showCapPreview(m.id)} disabled={serverBusy !== null}>
+                              View
+                            </button>
+                          </>
+                        )}
+                        <a className="btn secondary" href={api.videoMediaUrl(video!.id, m.id)} download={m.filename}>
+                          Download
+                        </a>
+                        <button className="btn secondary" style={{ color: "var(--red)" }} onClick={() => doDeleteMedia(m.id)} disabled={serverBusy !== null}>
+                          Delete
+                        </button>
+                      </div>
+                      {m.kind === "captions" && capPreview[m.id] && (
+                        <pre style={{ background: "#14161a", color: "#d7dae0", borderRadius: 8, padding: 12, fontSize: 12, lineHeight: 1.5, maxHeight: 220, overflow: "auto", margin: "8px 0 0", whiteSpace: "pre-wrap" }}>
+                          {capPreview[m.id]}
+                        </pre>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {videoMedia.length > 0 && (
+                  <>
+                    <h4 style={{ margin: "18px 0 8px", fontSize: 14 }}>Enhance & build MP4</h4>
+                    <div className="grid2">
+                      <div className="field" style={{ marginBottom: 0 }}>
+                        <label>Source file</label>
+                        <select value={effectiveSource} onChange={(e) => setEnhanceSource(e.target.value)} disabled={serverBusy !== null}>
+                          {videoMedia.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.kind === "enhanced" ? "Enhanced" : "Original"} — {m.filename}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="field" style={{ marginBottom: 0 }}>
+                        <label>Framing</label>
+                        <select value={enh.framing} onChange={(e) => setEnh({ ...enh, framing: e.target.value as typeof enh.framing })} disabled={serverBusy !== null}>
+                          {FRAMINGS.map((f) => (
+                            <option key={f.value} value={f.value}>{f.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="row" style={{ marginTop: 10, flexWrap: "wrap", gap: 14 }}>
+                      <label style={{ fontSize: 13.5, display: "flex", gap: 6, alignItems: "center" }}>
+                        <input type="checkbox" checked={enh.auto} onChange={(e) => setEnh({ ...enh, auto: e.target.checked })} />
+                        Auto colour & lighting (mild)
+                      </label>
+                      <label style={{ fontSize: 13.5, display: "flex", gap: 6, alignItems: "center" }}>
+                        <input type="checkbox" checked={enh.normalize} onChange={(e) => setEnh({ ...enh, normalize: e.target.checked })} />
+                        Normalize audio level
+                      </label>
+                      <label style={{ fontSize: 13.5, display: "flex", gap: 6, alignItems: "center" }}>
+                        <input type="checkbox" checked={enh.burn} onChange={(e) => setEnh({ ...enh, burn: e.target.checked })} disabled={!hasCaptions || serverBusy !== null} />
+                        Burn captions into video{!hasCaptions ? " (none yet)" : ""}
+                      </label>
+                    </div>
+                    <div className="grid2" style={{ marginTop: 10 }}>
+                      {(
+                        [
+                          ["brightness", "Brightness"],
+                          ["contrast", "Contrast"],
+                          ["saturation", "Colour"],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <div key={key} className="field" style={{ marginBottom: 0 }}>
+                          <label>{label} ({enh[key] > 0 ? `+${enh[key]}` : enh[key]})</label>
+                          <input
+                            type="range"
+                            min={-10}
+                            max={10}
+                            value={enh[key]}
+                            onChange={(e) => setEnh({ ...enh, [key]: Number(e.target.value) })}
+                            style={{ width: "100%" }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="row" style={{ marginTop: 12, alignItems: "center" }}>
+                      <button className="btn" onClick={doEnhance} disabled={serverBusy !== null || !effectiveSource}>
+                        {serverBusy === "enhance" ? `Enhancing… ${jobNote ?? ""}` : "Enhance → build MP4"}
+                      </button>
+                      {jobNote && serverBusy !== "enhance" && <span className="muted" style={{ fontSize: 12.5 }}>{jobNote}</span>}
+                      <span className="muted" style={{ fontSize: 12.5 }}>
+                        Takes a minute or two on long videos. The original is never modified.
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                <h4 style={{ margin: "18px 0 8px", fontSize: 14 }}>Captions (WebVTT)</h4>
+                <div className="field">
+                  <label>What you say in the video</label>
+                  <textarea
+                    value={capText}
+                    onChange={(e) => setCapText(e.target.value)}
+                    placeholder="Paste a rough transcript of what you say — or leave empty and tick 'use my script'."
+                    style={{ minHeight: 90 }}
+                  />
+                </div>
+                <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+                  <button className="btn secondary" onClick={() => setCapText(script)} disabled={!script || serverBusy !== null}>
+                    Use my script
+                  </button>
+                  <button className="btn" onClick={doCaptions} disabled={serverBusy !== null}>
+                    {serverBusy === "captions" ? "Building…" : "Generate captions"}
+                  </button>
+                  <span className="muted" style={{ fontSize: 12.5 }}>
+                    Timed proportionally across the video from your text — review the cues before
+                    exporting. Not speech recognition.
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+
+          {report && (
+            <div className="card">
+              <h3>
+                Quality check{" "}
+                <span
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    padding: "3px 10px",
+                    borderRadius: 999,
+                    background: report.report.summary.ready ? "#e8f6ee" : "#fff6e0",
+                    color: report.report.summary.ready ? "#1d7a46" : "#9a6a08",
+                    marginLeft: 8,
+                  }}
+                >
+                  {report.report.summary.ready
+                    ? `Ready — ${report.report.summary.pass} pass · ${report.report.summary.warn} note(s)`
+                    : `Needs attention — ${report.report.summary.fail} fail · ${report.report.summary.warn} note(s)`}
+                </span>
+              </h3>
+              <div className="stack" style={{ marginTop: 10 }}>
+                {report.report.checks.map((c) => {
+                  const s = STATUS_STYLE[c.status] ?? STATUS_STYLE.pass;
+                  return (
+                    <div className="row" key={c.id} style={{ alignItems: "flex-start" }}>
+                      <span
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: 999,
+                          background: s.bg,
+                          color: s.fg,
+                          fontSize: 12,
+                          fontWeight: 800,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                          marginTop: 1,
+                        }}
+                      >
+                        {s.glyph}
+                      </span>
+                      <div style={{ minWidth: 0 }}>
+                        <b style={{ fontSize: 13.5 }}>{c.label}</b>{" "}
+                        <span className="muted" style={{ fontSize: 12.5 }}>— {c.detail}</span>
+                        {c.tip && <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>{c.tip}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="muted" style={{ marginTop: 12, fontSize: 12.5 }}>{report.report.note}</p>
+            </div>
+          )}
+
+          <div className="card">
             <h3>Saved responses for this application</h3>
+            <p className="muted">
+              Local takes stay private to this browser. Once sent to the studio they are stored with
+              the application and appear in “Your files” above.
+            </p>
             {recordings.length === 0 ? (
               <p className="muted">No saved recordings yet.</p>
             ) : (
@@ -304,14 +812,23 @@ export default function VideoStudioPage() {
                 {recordings.map((r) => (
                   <div className="item" key={r.id}>
                     <video src={URL.createObjectURL(r.blob)} controls style={{ width: "100%", borderRadius: 8, background: "#101216", marginBottom: 8 }} />
-                    <div className="row">
+                    <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
                       <button className="btn secondary" onClick={() => download(r.blob, `response-${Math.round(r.seconds)}s.webm`)}>
                         Download
+                      </button>
+                      <button
+                        className="btn secondary"
+                        onClick={() => sendToStudio(r.blob, `take-${Math.round(r.seconds)}s.webm`)}
+                        disabled={serverBusy !== null}
+                      >
+                        {serverBusy === "upload" ? "Uploading…" : "Send to studio →"}
                       </button>
                       <button className="btn secondary" style={{ color: "var(--red)" }} onClick={() => removeRecording(r.id)}>
                         Delete
                       </button>
-                      <span className="muted">{Math.round(r.seconds)}s · {new Date(r.createdAt).toLocaleDateString()}</span>
+                      <span className="muted" style={{ fontSize: 12.5 }}>
+                        {Math.round(r.seconds)}s · {new Date(r.createdAt).toLocaleDateString()}
+                      </span>
                     </div>
                   </div>
                 ))}
