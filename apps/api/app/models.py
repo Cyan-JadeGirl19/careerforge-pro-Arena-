@@ -304,6 +304,9 @@ class JobPosting(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     tags: Mapped[str] = mapped_column(String(300), default="")
     salary_text: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Best-effort posting language: 'english' | 'other' | 'unknown'.
+    # The Job Finder filters to English-only by default (user requirement).
+    language: Mapped[str | None] = mapped_column(String(10), nullable=True, index=True)
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     # transparent SA-eligibility signals (computed from the posting text)

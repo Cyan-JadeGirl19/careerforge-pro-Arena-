@@ -38,6 +38,7 @@ export default function JobFinderPage() {
   const [q, setQ] = useState("");
   const [source, setSource] = useState("all");
   const [saOnly, setSaOnly] = useState(true);
+  const [englishOnly, setEnglishOnly] = useState(true);
   const [maxAge, setMaxAge] = useState(0);
   const [sort, setSort] = useState("newest");
 
@@ -54,6 +55,7 @@ export default function JobFinderPage() {
         q: q || undefined,
         source: source === "all" ? undefined : source,
         sa_only: saOnly,
+        english_only: englishOnly,
         max_age_days: maxAge || undefined,
         sort,
         profile_id: pid || undefined,
@@ -64,7 +66,7 @@ export default function JobFinderPage() {
       setError(e instanceof ApiError ? e.message : "Could not load jobs.");
       return -1;
     }
-  }, [q, source, saOnly, maxAge, sort, pid]);
+  }, [q, source, saOnly, englishOnly, maxAge, sort, pid]);
 
   const loadHealth = useCallback(async () => {
     try {
@@ -173,6 +175,7 @@ export default function JobFinderPage() {
         q: q || null,
         source: source === "all" ? null : source,
         sa_only: saOnly,
+        english_only: englishOnly,
         max_age_days: maxAge || null,
         sort,
       });
@@ -188,6 +191,7 @@ export default function JobFinderPage() {
     setQ((f.q as string) || "");
     setSource((f.source as string) || "all");
     setSaOnly(Boolean(f.sa_only ?? true));
+    setEnglishOnly(f.english_only === null || f.english_only === undefined ? true : Boolean(f.english_only));
     setMaxAge(Number(f.max_age_days || 0));
     setSort((f.sort as string) || "newest");
   };
@@ -264,6 +268,12 @@ export default function JobFinderPage() {
             <option value="newest">Newest</option>
             <option value="oldest">Oldest</option>
           </select>
+          <label className="checkbox" style={{ padding: 0 }}>
+            <input type="checkbox" checked={englishOnly} onChange={(e) => setEnglishOnly(e.target.checked)} />
+            <span>
+              <b>English-speaking jobs only</b>
+            </span>
+          </label>
           <label className="checkbox" style={{ padding: 0 }}>
             <input type="checkbox" checked={saOnly} onChange={(e) => setSaOnly(e.target.checked)} />
             <span>

@@ -69,6 +69,7 @@ def search_jobs(
     q: str | None = Query(default=None, max_length=120),
     source: str | None = Query(default=None, pattern="^(all|wwr|remoteok|remotive|adzuna|user_url)$"),
     sa_only: bool = Query(default=False),
+    english_only: bool = Query(default=True),
     max_age_days: int | None = Query(default=None, ge=1, le=90),
     sort: str = Query(default="newest", pattern="^(newest|oldest)$"),
     limit: int = Query(default=50, ge=1, le=100),
@@ -78,7 +79,8 @@ def search_jobs(
 ):
     profile = _profile_for_match(db, profile_id)
     rows = jobs_service.search_jobs(
-        db, q=q, source=source, sa_only=sa_only, max_age_days=max_age_days,
+        db, q=q, source=source, sa_only=sa_only, english_only=english_only,
+        max_age_days=max_age_days,
         sort=sort, limit=limit, offset=offset,
     )
     out = []

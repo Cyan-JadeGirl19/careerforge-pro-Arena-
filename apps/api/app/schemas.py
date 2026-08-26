@@ -443,6 +443,7 @@ class JobOut(BaseModel):
     posted_at: datetime | None
     fetched_at: datetime
     open_to_sa: str
+    language: str | None = None
     sa_signals: list[str]
     global_signals: list[str]
     exclude_signals: list[str]

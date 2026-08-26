@@ -36,13 +36,26 @@ async def lifespan(_: FastAPI):
     # Normal case: schema is ready immediately. If the DB is unreachable at
     # startup (first deploy, DB lagging the service), keep the app up and
     # retry in the background - the health endpoint reports DB state.
+    def _post_init() -> None:
+        """Classify any pre-existing jobs' language (idempotent)."""
+        try:
+            from .db import SessionLocal
+            from .jobs import service as jobs_service
+
+            with SessionLocal() as db:
+                jobs_service.backfill_languages(db)
+        except Exception:
+            pass  # non-fatal; the next sync will retry
+
     try:
         init_db()
+        _post_init()
     except Exception:
         def _init_with_retry() -> None:
             for attempt in range(20):
                 try:
                     init_db()
+                    _post_init()
                     return
                 except Exception:
                     time.sleep(min(30, 2 * (attempt + 1)))

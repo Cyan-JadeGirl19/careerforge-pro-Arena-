@@ -306,3 +306,158 @@ def test_erasure_covers_saved_searches(client, consented_profile):
         json={"name": "temp", "filters": {}},
     )
     assert client.delete(f"{API}/profiles/{consented_profile}").status_code == 204
+
+
+# ---------------------------------------------------------- language filter
+from app.jobs.normalizer import detect_language  # noqa: E402
+from app.jobs import service as jobs_service  # noqa: E402
+from app.db import SessionLocal  # noqa: E402
+from app.models import JobPosting  # noqa: E402
+
+
+def test_detect_language_english():
+    text = (
+        "We are a remote company looking for a senior support team member. "
+        "You will work with our customer success team to help customers every day. "
+        "Experience with SaaS and strong communication skills are required."
+    )
+    assert detect_language(text) == "english"
+
+
+def test_detect_language_german():
+    text = (
+        "Wir suchen einen erfahrenen Support-Mitarbeiter fuer unser Team. "
+        "Sie arbeiten mit unseren Kunden zusammen und loesen ihre Probleme. "
+        "Erfahrung im SaaS-Bereich und starke Kommunikation sind erforderlich."
+    )
+    assert detect_language(text) == "other"
+
+
+def test_detect_language_french():
+    text = (
+        "Nous recherchons un développeur senior pour notre équipe à distance. "
+        "Vous travaillerez avec nos clients et nos produits. Expérience en "
+        "SaaS et bonnes compétences en communication requises."
+    )
+    assert detect_language(text) == "other"
+
+
+def test_detect_language_cjk():
+    assert detect_language("我们正在招聘一名高级客户成功经理，负责远程团队。") == "other"
+
+
+def test_detect_language_short_is_unknown():
+    assert detect_language("Job") == "unknown"
+
+
+def test_normalize_sets_language():
+    d = normalize(
+        source="test",
+        title="Senior Support Manager",
+        description="We are looking for a remote team member to help customers. "
+                    "Experience with SaaS and strong communication required.",
+    )
+    assert d["language"] == "english"
+    d2 = normalize(
+        source="test",
+        title="Support",
+        description="Wir suchen einen Mitarbeiter fuer unser Team. Sie helfen "
+                    "unseren Kunden und loesen Probleme im SaaS-Bereich.",
+    )
+    assert d2["language"] == "other"
+
+
+def _job_row(key, title, desc, language=None, open_to_sa="unknown"):
+    return dict(
+        id=key,
+        dedupe_key=key,
+        source="test",
+        title=title,
+        company=None,
+        location="Remote",
+        url=None,
+        description=desc,
+        tags="",
+        salary_text=None,
+        posted_at=None,
+        fetched_at=datetime.now(timezone.utc),
+        open_to_sa=open_to_sa,
+        remote_type="remote",
+        language=language,
+    )
+
+
+def test_search_english_only_filter(client):
+    with SessionLocal() as db:
+        eng = _job_row(
+            "eng-key",
+            "Senior Support Manager",
+            "We are a remote company looking for a team member to help customers.",
+            language="english",
+        )
+        ger = _job_row(
+            "ger-key",
+            "Support-Mitarbeiter",
+            "Wir suchen einen Mitarbeiter fuer unser Team und loesen Probleme.",
+            language="other",
+        )
+        unk = _job_row(
+            "unk-key",
+            "Manager",
+            "We are a remote company looking for a team member to help customers.",
+            language=None,  # unclassified
+        )
+        for r in (eng, ger, unk):
+            db.add(JobPosting(**r))
+        db.commit()
+
+    try:
+        # default (english_only=true) -> only the classified-english row
+        res = client.get(f"{API}/jobs")
+        assert res.status_code == 200
+        titles = {j["title"] for j in res.json()}
+        assert "Senior Support Manager" in titles
+        assert "Support-Mitarbeiter" not in titles
+        assert "Manager" not in titles  # unknown is hidden by default
+
+        # english_only=false -> everything is visible
+        res2 = client.get(f"{API}/jobs?english_only=false")
+        titles2 = {j["title"] for j in res2.json()}
+        assert "Senior Support Manager" in titles2
+        assert "Support-Mitarbeiter" in titles2
+        assert "Manager" in titles2
+
+        # the language field is exposed
+        eng_row = next(j for j in res2.json() if j["title"] == "Senior Support Manager")
+        assert eng_row["language"] == "english"
+    finally:
+        with SessionLocal() as db:
+            for key in ("eng-key", "ger-key", "unk-key"):
+                row = db.get(JobPosting, key)
+                if row:
+                    db.delete(row)
+            db.commit()
+
+
+def test_backfill_languages_classifies_nulls(client):
+    with SessionLocal() as db:
+        row = _job_row(
+            "backfill-key",
+            "Senior Support Manager",
+            "We are a remote company looking for a team member to help customers.",
+            language=None,
+        )
+        db.add(JobPosting(**row))
+        db.commit()
+    try:
+        with SessionLocal() as db:
+            n = jobs_service.backfill_languages(db)
+            assert n >= 1
+            r = db.get(JobPosting, "backfill-key")
+            assert r.language == "english"
+    finally:
+        with SessionLocal() as db:
+            row = db.get(JobPosting, "backfill-key")
+            if row:
+                db.delete(row)
+            db.commit()

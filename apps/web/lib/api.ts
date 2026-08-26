@@ -369,6 +369,7 @@ export const api = {
       q?: string;
       source?: string;
       sa_only?: boolean;
+      english_only?: boolean;
       max_age_days?: number;
       sort?: string;
       profile_id?: string;

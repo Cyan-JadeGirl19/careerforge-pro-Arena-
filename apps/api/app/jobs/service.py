@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..models import JobPosting, Profile
 from . import sources
 from .matching import match_job
+from .normalizer import detect_language
 
 SOURCE_NAMES = ("wwr", "remoteok", "remotive", "adzuna")
 
@@ -59,7 +60,25 @@ def sync_all(db: Session, enabled: list[str], adzuna_creds: tuple[str, str] | No
             db.rollback()
             entry.update(status="error", error=str(exc)[:200])
         results.append(entry)
+    backfill_languages(db)
     return results
+
+
+def backfill_languages(db: Session) -> int:
+    """Classify jobs stored before the language column existed.
+
+    Idempotent and cheap (regex only) - runs after startup and after
+    every sync, so a deployment picks up pre-existing jobs.
+    """
+    rows = db.scalars(
+        select(JobPosting).where(JobPosting.language.is_(None))
+    ).all()
+    if not rows:
+        return 0
+    for r in rows:
+        r.language = detect_language(f"{r.title} {r.description}")
+    db.commit()
+    return len(rows)
 
 
 def search_jobs(
@@ -68,6 +87,7 @@ def search_jobs(
     q: str | None = None,
     source: str | None = None,
     sa_only: bool = False,
+    english_only: bool = True,
     max_age_days: int | None = None,
     sort: str = "newest",
     limit: int = 50,
@@ -88,6 +108,10 @@ def search_jobs(
         stmt = stmt.where(JobPosting.source == source)
     if sa_only:
         stmt = stmt.where(JobPosting.open_to_sa == "yes")
+    if english_only:
+        # Unclassified ('unknown') jobs are hidden from the default view;
+        # they remain visible with english_only=false.
+        stmt = stmt.where(JobPosting.language == "english")
     if max_age_days:
         cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
         stmt = stmt.where(JobPosting.posted_at >= cutoff)
@@ -121,6 +145,7 @@ def job_to_dict(job: JobPosting, match: dict | None = None) -> dict:
         "posted_at": job.posted_at,
         "fetched_at": job.fetched_at,
         "open_to_sa": job.open_to_sa,
+        "language": job.language,
         "sa_signals": json.loads(job.sa_signals_json) if job.sa_signals_json else [],
         "global_signals": json.loads(job.global_signals_json) if job.global_signals_json else [],
         "exclude_signals": json.loads(job.exclude_signals_json) if job.exclude_signals_json else [],

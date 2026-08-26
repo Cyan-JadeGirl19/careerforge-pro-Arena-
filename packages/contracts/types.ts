@@ -351,6 +351,7 @@ export interface Job {
   posted_at: string | null;
   fetched_at: string;
   open_to_sa: "yes" | "no" | "unknown";
+  language: string | null;
   sa_signals: string[];
   global_signals: string[];
   exclude_signals: string[];

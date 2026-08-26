@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.14.0 - 2026-08-26
+
+Job Finder: **English-speaking jobs only** (user requirement):
+
+- Every job posting is now classified at ingest: `english` | `other` |
+  `unknown`, via a transparent multilingual heuristic (function-word
+  comparison across EN/DE/FR/ES/PT + non-Latin script detection — no
+  ML, no network calls, nothing invented).
+- Search filters to **English-only by default** (`english_only=true`);
+  unclassified jobs are hidden from the default view but remain visible
+  with the toggle off. The Job Finder page has an "English-speaking
+  jobs only" checkbox (on by default) and it's part of saved searches.
+- Existing jobs in production are classified automatically: a
+  backfill runs at startup and after every sync (idempotent, cheap).
+- 149 API tests passing (8 new: detector for EN/DE/FR/CJK/short text,
+  normalize, filter on/off, backfill), web typecheck+build green,
+  OpenAPI contract re-exported
+
 ## 0.13.0 - 2026-08-26
 
 3-touch follow-up sequences + one-click local launcher:

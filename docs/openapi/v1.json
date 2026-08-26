@@ -3,7 +3,7 @@
   "info": {
     "title": "CareerForge Pro API",
     "description": "CV-first career acceleration for South African remote work. Human-supervised: sensitive actions require explicit consent.",
-    "version": "0.3.2"
+    "version": "0.3.3"
   },
   "paths": {
     "/api/v1/health": {
@@ -2590,6 +2590,16 @@
               "type": "boolean",
               "default": false,
               "title": "Sa Only"
+            }
+          },
+          {
+            "name": "english_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "English Only"
             }
           },
           {
@@ -6392,6 +6402,17 @@
             "type": "string",
             "title": "Open To Sa"
           },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
           "sa_signals": {
             "items": {
               "type": "string"
@@ -6592,6 +6613,17 @@
           "open_to_sa": {
             "type": "string",
             "title": "Open To Sa"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
           },
           "sa_signals": {
             "items": {
