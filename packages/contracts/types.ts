@@ -460,8 +460,16 @@ export interface FollowUp {
   status: "scheduled" | "sent" | "skipped";
   draft_text: string;
   notes: string | null;
+  touch_number: number;
+  gmail_draft_id: string | null;
+  gmail_url: string | null;
   application_title: string | null;
   application_company: string | null;
+}
+
+export interface FollowUpSequenceOut {
+  pattern: string;
+  touches: FollowUp[];
 }
 
 // ---- interview coach ----

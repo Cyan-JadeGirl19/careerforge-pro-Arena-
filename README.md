@@ -49,6 +49,16 @@ python3 -m http.server 8000 --bind 0.0.0.0
 
 ### Production apps (API + web)
 
+**One click:** double-click `start.command` (macOS) or `start.bat`
+(Windows) — first run creates the API virtualenv + web dependencies,
+then both servers start and stay up with clean logs.
+
+```bash
+bash start.sh     # same thing, from a terminal
+```
+
+Manual / Makefile (if you prefer):
+
 ```bash
 make install     # pip (apps/api) + npm (apps/web)
 make dev-api     # FastAPI on :8001, docs at /docs
@@ -101,10 +111,15 @@ Autonomous studio (upload CV → program does the rest):
 - `POST /api/v1/videos/{id}/media/{mid}/enhance` → colour/audio/framing/captions → MP4 (job)
 - `POST /api/v1/videos/{id}/media/{mid}/export-mp4` / `export-audio` → MP4 / MP3
 - `POST /api/v1/videos/{id}/captions` → WebVTT from your text (proportional timing)
+- `POST /api/v1/videos/{id}/media/{mid}/trim` → cut [start,end] → new MP4 (job)
+- `POST /api/v1/videos/{id}/media-headshot` → approved headshot for the intro card
+- `POST /api/v1/videos/{id}/intro-card` → name/role/headshot intro video + thumbnail (job)
 - `GET /api/v1/videos/{id}/media/{mid}/download`, `DELETE` same
 - `GET /api/v1/jobs/video/{job_id}` → background job status
 - `POST /api/v1/profiles/{id}/auto-pipeline` → full review queue in one call
 - `POST /api/v1/applications/{id}/status` → tracker stage updates
+- `POST /api/v1/applications/{id}/followup-sequence` → 3-touch follow-up (standard/quick/gentle)
+- `POST /api/v1/followups/{id}/gmail-draft` → files that touch as a Gmail draft
 
 Gmail outreach (drafts only — the app never sends):
 

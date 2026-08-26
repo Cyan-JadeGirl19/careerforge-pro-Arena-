@@ -41,7 +41,9 @@ request recorded responses), not a later-phase add-on. Video responses up to
 - [x] Approved references and attachments
 - [x] Follow-up reminders
 - [x] Consent, suppression, and deletion controls
-- [ ] 3-touch follow-up sequences (drafts + reminders only)
+- [x] 3-touch follow-up sequences — **shipped 0.13.0** (standard/quick/
+  gentle patterns, one-outstanding-touch etiquette, Gmail drafts,
+  stage + recipient gates)
 
 ## Phase 4 — Media and coaching
 

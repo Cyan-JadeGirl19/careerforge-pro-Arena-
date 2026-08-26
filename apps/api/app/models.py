@@ -254,6 +254,11 @@ class FollowUp(Base):
     # scheduled | sent | skipped
     draft_text: Mapped[str] = mapped_column(Text, default="")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 1 = standalone/auto follow-up; 1..3 inside a 3-touch sequence.
+    # The program only ever drafts the earliest pending touch, so there
+    # is at most one outstanding follow-up at a time (etiquette rule).
+    touch_number: Mapped[int] = mapped_column(Integer, default=1)
+    gmail_draft_id: Mapped[str | None] = mapped_column(String(60), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

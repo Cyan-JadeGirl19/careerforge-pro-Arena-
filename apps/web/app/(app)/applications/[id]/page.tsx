@@ -8,6 +8,7 @@ import type {
   Application,
   ApplicationStatus,
   FollowUp,
+  GmailStatus,
   Reference,
   TailoredCv,
 } from "../../../../../../packages/contracts/types";
@@ -36,6 +37,8 @@ export default function ApplicationDetailPage({ params }: { params: { id: string
   const [refRequested, setRefRequested] = useState("unspecified");
   const [followups, setFollowups] = useState<FollowUp[]>([]);
   const [fuDays, setFuDays] = useState(5);
+  const [gmail, setGmail] = useState<GmailStatus | null>(null);
+  const [seqPattern, setSeqPattern] = useState<"standard" | "quick" | "gentle">("standard");
 
   const load = useCallback(async () => {
     try {
@@ -49,13 +52,20 @@ export default function ApplicationDetailPage({ params }: { params: { id: string
       if (a.letter) setLetter(a.letter.text);
       if (session) {
         setAllRefs(await api.listReferences(session.profileId));
-        const allFus = await api.listFollowups(session.profileId);
+        const allFus = await api.listFollowups(session.profileId, true);
         setFollowups(allFus.filter((f) => f.application_id === a.id));
+        api.gmailStatus(session.profileId).then(setGmail).catch(() => setGmail(null));
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not load this application.");
     }
   }, [id, session]);
+
+  const sequenceRunning = followups.some(
+    (f) => f.kind === "post_application" && f.touch_number >= 2,
+  );
+  const canStartSequence =
+    !!app && (app.status === "applied" || app.status === "phone_screen") && !sequenceRunning;
 
   const addFollowup = async () => {
     setBusy("fu");
@@ -74,10 +84,40 @@ export default function ApplicationDetailPage({ params }: { params: { id: string
     }
   };
 
+  const startSequence = async () => {
+    setBusy("seq");
+    setError(null);
+    try {
+      await api.createFollowUpSequence(id, seqPattern);
+      await load();
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? `${e.message} (${e.code}) — enable the outreach consent in Settings first.`
+          : "Could not start the sequence.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const fuGmailDraft = async (fid: string) => {
+    setBusy("fugm");
+    setError(null);
+    try {
+      await api.followupGmailDraft(fid);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not create the Gmail draft.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const actFollowup = async (fid: string, status: "sent" | "skipped") => {
     try {
       await api.updateFollowup(fid, { status });
-      setFollowups((f) => f.filter((x) => x.id !== fid));
+      setFollowups((f) => f.map((x) => (x.id === fid ? { ...x, status } : x)));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not update the follow-up.");
     }
@@ -356,31 +396,75 @@ export default function ApplicationDetailPage({ params }: { params: { id: string
         <div className="card">
           <h3>Follow-ups</h3>
           <p className="muted">
-            Scheduled automatically: 5 days after applying, 3 days after an interview. Drafts are
-            yours to edit and send.
+            Scheduled automatically: 5 days after applying, 3 days after an interview. Start a
+            3-touch sequence and the program drafts each touch — you send from your own mailbox.
+            At most one follow-up stays outstanding at a time.
           </p>
+
+          {canStartSequence && (
+            <div className="row" style={{ flexWrap: "wrap", gap: 10, marginBottom: 12, alignItems: "center" }}>
+              <select
+                value={seqPattern}
+                onChange={(e) => setSeqPattern(e.target.value as "standard" | "quick" | "gentle")}
+                style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px" }}
+              >
+                <option value="standard">Standard (5 / 10 / 17 days)</option>
+                <option value="quick">Quick (3 / 7 / 12 days)</option>
+                <option value="gentle">Gentle (7 / 14 / 21 days)</option>
+              </select>
+              <button className="btn" onClick={startSequence} disabled={busy === "seq"}>
+                {busy === "seq" ? "Scheduling…" : "Start 3-touch follow-up"}
+              </button>
+              <span className="muted" style={{ fontSize: 12.5 }}>
+                Touch 1 unlocks when due; touches 2–3 unlock once the previous one is sent or skipped.
+              </span>
+            </div>
+          )}
+
           {followups.length > 0 && (
             <div className="stack" style={{ marginBottom: 12 }}>
               {followups.map((f) => {
-                const overdue = new Date(f.due_at).getTime() < Date.now();
+                const overdue = f.status === "scheduled" && new Date(f.due_at).getTime() < Date.now();
+                const done = f.status !== "scheduled";
                 return (
-                  <div className="item" key={f.id}>
-                    <div className="row" style={{ justifyContent: "space-between" }}>
-                      <span className="chip neutral">{f.kind.replace(/_/g, " ")}</span>
-                      <span className={`chip ${overdue ? "missing" : "brand"}`}>
-                        {overdue ? "due now" : `due ${new Date(f.due_at).toLocaleDateString()}`}
+                  <div className="item" key={f.id} style={done ? { opacity: 0.72 } : undefined}>
+                    <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                      <span className="chip neutral">
+                        {f.kind.replace(/_/g, " ")}
+                        {f.touch_number > 1 ? ` · touch ${f.touch_number} of 3` : ""}
                       </span>
+                      {done ? (
+                        <span className="chip neutral">{f.status === "sent" ? "sent ✓" : "skipped"}</span>
+                      ) : (
+                        <span className={`chip ${overdue ? "missing" : "brand"}`}>
+                          {overdue ? "due now" : `due ${new Date(f.due_at).toLocaleDateString()}`}
+                        </span>
+                      )}
                     </div>
                     <pre className="script" style={{ margin: "8px 0", maxHeight: 150, overflowY: "auto" }}>
                       {f.draft_text}
                     </pre>
-                    <div className="row">
-                      <button className="btn" onClick={() => actFollowup(f.id, "sent")}>
-                        Mark sent
-                      </button>
-                      <button className="btn secondary" onClick={() => actFollowup(f.id, "skipped")}>
-                        Skip
-                      </button>
+                    <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
+                      {!done && (
+                        <>
+                          <button className="btn" onClick={() => actFollowup(f.id, "sent")}>
+                            Mark sent
+                          </button>
+                          <button className="btn secondary" onClick={() => actFollowup(f.id, "skipped")}>
+                            Skip
+                          </button>
+                          {gmail?.connected && f.kind === "post_application" && (
+                            <button className="btn secondary" onClick={() => fuGmailDraft(f.id)} disabled={busy === "fugm"}>
+                              {busy === "fugm" ? "Creating…" : "Create Gmail draft"}
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {f.gmail_url && (
+                        <a className="btn secondary" href={f.gmail_url} target="_blank" rel="noreferrer">
+                          Open in Gmail
+                        </a>
+                      )}
                     </div>
                   </div>
                 );

@@ -361,8 +361,20 @@ class FollowUpOut(BaseModel):
     status: str
     draft_text: str
     notes: str | None
+    touch_number: int = 1
+    gmail_draft_id: str | None = None
+    gmail_url: str | None = None
     application_title: str | None = None
     application_company: str | None = None
+
+
+class FollowUpSequenceCreate(BaseModel):
+    pattern: str = Field(default="standard", pattern="^(standard|quick|gentle)$")
+
+
+class FollowUpSequenceOut(BaseModel):
+    pattern: str
+    touches: list[FollowUpOut]
 
 
 class FollowUpStatusIn(BaseModel):

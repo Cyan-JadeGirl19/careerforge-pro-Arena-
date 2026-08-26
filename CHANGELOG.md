@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.13.0 - 2026-08-26
+
+3-touch follow-up sequences + one-click local launcher:
+
+- **3-touch follow-up sequences** (Phase 3 feature complete): start a
+  sequence on any applied/phone-screen application — Standard (5/10/17
+  days), Quick (3/7/12) or Gentle (7/14/21). Each touch gets its own
+  plain, human draft written from your real CV (touch 1 uses real
+  evidence; touch 3 is an explicit "last note").
+- **Etiquette enforced server-side**: at most one outstanding follow-up
+  — touch 2's Gmail draft is blocked until touch 1 is marked sent or
+  skipped; follow-ups stop being draftable once the application moves
+  to interview/offer/rejected.
+- **Follow-up → Gmail draft**: reuses the drafts-only Gmail connection;
+  recipient must be a non-suppressed recruiter contact matching THIS
+  job (title, then company) with a published email — wrong-company
+  follow-ups are impossible; shared 20/hour throttle with outreach.
+- UI: application page shows touch chips, due/overdue, sent/skipped
+  states, sequence picker, and per-touch "Create Gmail draft" /
+  "Open in Gmail".
+- **One-click local launcher** (reliability spec): `start.command`
+  (macOS double-click) / `start.bat` (Windows double-click) /
+  `start.sh` (terminal). First run creates the venv + installs web
+  deps; then both servers start with readiness checks and a status
+  banner; Ctrl-C / closing the windows stops everything. Smoke-tested
+  live (API + web + same-origin proxy all green).
+- 141 API tests passing (8 new), web typecheck+build green, OpenAPI
+  contract re-exported, README updated
+
 ## 0.12.0 - 2026-08-26
 
 Video Studio: trimming, headshot intro card, thumbnail:

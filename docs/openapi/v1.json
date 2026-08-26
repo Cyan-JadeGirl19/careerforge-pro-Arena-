@@ -3,7 +3,7 @@
   "info": {
     "title": "CareerForge Pro API",
     "description": "CV-first career acceleration for South African remote work. Human-supervised: sensitive actions require explicit consent.",
-    "version": "0.3.1"
+    "version": "0.3.2"
   },
   "paths": {
     "/api/v1/health": {
@@ -3998,6 +3998,16 @@
               "type": "string",
               "title": "Profile Id"
             }
+          },
+          {
+            "name": "include_done",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Done"
+            }
           }
         ],
         "responses": {
@@ -4151,6 +4161,100 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/applications/{app_id}/followup-sequence": {
+      "post": {
+        "tags": [
+          "followups"
+        ],
+        "summary": "Followup Sequence Create",
+        "operationId": "followup_sequence_create_api_v1_applications__app_id__followup_sequence_post",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FollowUpSequenceCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowUpSequenceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/followups/{followup_id}/gmail-draft": {
+      "post": {
+        "tags": [
+          "followups"
+        ],
+        "summary": "Followup Gmail Draft",
+        "operationId": "followup_gmail_draft_api_v1_followups__followup_id__gmail_draft_post",
+        "parameters": [
+          {
+            "name": "followup_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Followup Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowUpOut"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -5683,6 +5787,33 @@
             ],
             "title": "Notes"
           },
+          "touch_number": {
+            "type": "integer",
+            "title": "Touch Number",
+            "default": 1
+          },
+          "gmail_draft_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gmail Draft Id"
+          },
+          "gmail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gmail Url"
+          },
           "application_title": {
             "anyOf": [
               {
@@ -5718,6 +5849,39 @@
           "notes"
         ],
         "title": "FollowUpOut"
+      },
+      "FollowUpSequenceCreate": {
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "pattern": "^(standard|quick|gentle)$",
+            "title": "Pattern",
+            "default": "standard"
+          }
+        },
+        "type": "object",
+        "title": "FollowUpSequenceCreate"
+      },
+      "FollowUpSequenceOut": {
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "title": "Pattern"
+          },
+          "touches": {
+            "items": {
+              "$ref": "#/components/schemas/FollowUpOut"
+            },
+            "type": "array",
+            "title": "Touches"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pattern",
+          "touches"
+        ],
+        "title": "FollowUpSequenceOut"
       },
       "FollowUpStatusIn": {
         "properties": {

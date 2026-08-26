@@ -10,6 +10,7 @@ import type {
   ApplicationStatus,
   AutoPipelineResult,
   FollowUp,
+  FollowUpSequenceOut,
   GmailDraftOut,
   GmailStatus,
   InterviewSession,
@@ -518,8 +519,10 @@ export const api = {
     }),
 
   // follow-ups
-  listFollowups: (profileId: string) =>
-    request<FollowUp[]>(`/profiles/${profileId}/followups`),
+  listFollowups: (profileId: string, includeDone = false) =>
+    request<FollowUp[]>(
+      `/profiles/${profileId}/followups${includeDone ? "?include_done=true" : ""}`,
+    ),
   createFollowup: (
     appId: string,
     body: { kind?: string; due_days?: number; notes?: string | null },
@@ -531,6 +534,19 @@ export const api = {
     id: string,
     body: { status?: string; notes?: string | null; draft_text?: string | null },
   ) => request<FollowUp>(`/followups/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  createFollowUpSequence: (
+    applicationId: string,
+    pattern: "standard" | "quick" | "gentle",
+  ) =>
+    request<FollowUpSequenceOut>(`/applications/${applicationId}/followup-sequence`, {
+      method: "POST",
+      body: JSON.stringify({ pattern }),
+    }),
+  followupGmailDraft: (followupId: string) =>
+    request<FollowUp>(`/followups/${followupId}/gmail-draft`, {
+      method: "POST",
+      body: "{}",
+    }),
   deleteFollowup: (id: string) => request<void>(`/followups/${id}`, { method: "DELETE" }),
 
   // interview coach
