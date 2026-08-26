@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.1 - 2026-08-25
+
+- README endpoint list updated with the Video Studio media + Gmail
+  outreach routes
+- Render auto-deploy switched to On Commit on both services (previous
+  "After CI Checks Pass" mode was not triggering); this commit doubles
+  as the end-to-end verification (health reports 0.3.1 once live)
+
 ## 0.11.0 - 2026-08-25
 
 Gmail Outreach (Phase 3 module ships, drafts-only by design):

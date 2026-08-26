@@ -96,8 +96,22 @@ Autonomous studio (upload CV → program does the rest):
 - `POST /api/v1/applications/{id}/cover-letter` → human-authentic letter
 - `POST /api/v1/applications/{id}/videos` → voice/video script (30–180s)
 - `POST /api/v1/videos/{id}/regenerate`, `POST /api/v1/videos/{id}/media`
+- `POST /api/v1/videos/{id}/media-upload` → store a take/upload (consent + likeness confirmation)
+- `POST /api/v1/videos/{id}/media/{mid}/analyze` → transparent quality report
+- `POST /api/v1/videos/{id}/media/{mid}/enhance` → colour/audio/framing/captions → MP4 (job)
+- `POST /api/v1/videos/{id}/media/{mid}/export-mp4` / `export-audio` → MP4 / MP3
+- `POST /api/v1/videos/{id}/captions` → WebVTT from your text (proportional timing)
+- `GET /api/v1/videos/{id}/media/{mid}/download`, `DELETE` same
+- `GET /api/v1/jobs/video/{job_id}` → background job status
 - `POST /api/v1/profiles/{id}/auto-pipeline` → full review queue in one call
 - `POST /api/v1/applications/{id}/status` → tracker stage updates
+
+Gmail outreach (drafts only — the app never sends):
+
+- `GET /api/v1/profiles/{id}/gmail/status`, `POST …/gmail/authorize`, `POST …/gmail/disconnect`
+- `GET /api/v1/gmail/oauth/callback` (candidate's own Google account, `gmail.modify` scope only)
+- `POST /api/v1/recruiters/{id}/gmail-draft` → files the email in your own Gmail Drafts
+- `GET /api/v1/profiles/{id}/outreach/drafts` → list filed drafts
 
 Sensitive operations return `409 CONSENT_REQUIRED` until the candidate has
 granted the matching consent (see `ConsentItem` in the contract).
