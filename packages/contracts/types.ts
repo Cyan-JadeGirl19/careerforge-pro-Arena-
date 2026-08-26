@@ -161,6 +161,7 @@ export interface CvVersion {
   title: string;
   role_focus: string | null;
   content: CvContent;
+  notes?: string[] | null;
   created_at: string;
 }
 

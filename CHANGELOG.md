@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.16.0 - 2026-08-26
+
+Custom versions now visibly reposition for the chosen role (bug fix:
+typing "marketing" produced a CV identical to the base CV):
+
+- **Role-targeted headline** on custom versions
+  (e.g. "Marketing | 7 yrs experience | Johannesburg")
+- **Honest pivot summary** built from real data only: the candidate's
+  actual latest title + years, plus the role-relevant skills they
+  genuinely have ("bringing data analysis and stakeholder management
+  to operations") or an explicit "moving into {role}" when none
+  match. Never claims role experience.
+- **Transparent notes under each custom version** in the UI: which
+  skills matched the role (and were moved to the front) or — when
+  nothing matches — "No marketing-specific skills found in your CV
+  yet… add real marketing experience to strengthen it", plus what was
+  emphasised/excluded. Notes are UI-only, never part of the exported
+  CV.
+- 152 API tests passing (2 new), web build green, contract re-exported
+
 ## 0.15.0 - 2026-08-26
 
 CV builders are now **role-based, not style-based** (user correction:

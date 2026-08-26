@@ -262,20 +262,89 @@ def top_roles_for_cv(parsed: ParsedCv, top_n: int = 3) -> list[str]:
     return out[:top_n]
 
 
+def _prettify_term(term: str, skills: list[str]) -> str:
+    """Prefer the candidate's own fuller skill wording ("stakeholder
+    management" over the bare keyword "stakeholder")."""
+    for s in skills:
+        if term.lower() in s.lower():
+            return s
+    return term
+
+
+def _custom_summary(parsed: ParsedCv, role_focus: str, keys: list[str]) -> str:
+    """Honest repositioning summary for a custom role.
+
+    If the role matches the candidate's latest title, keep the factual
+    summary. Otherwise build a pivot summary strictly from real data:
+    their actual latest title + years, plus the role-relevant skills
+    they genuinely have. Never claims role experience.
+    """
+    if parsed.experience and (parsed.experience[0].get("title") or "").lower() == role_focus.lower():
+        return _factual_summary(parsed, role_focus)
+    years = _years_of_experience(parsed)
+    latest = _latest_role(parsed)
+    opener = (
+        f"{latest} with {years} years of experience"
+        if latest and years
+        else latest or "Professional"
+    )
+    corpus = (
+        parsed.summary
+        + " "
+        + " ".join(parsed.skills)
+        + " "
+        + " ".join(b for e in parsed.experience for b in e.get("bullets", []))
+    ).lower()
+    matched = [
+        _prettify_term(k, parsed.skills)
+        for k in keys
+        if len(k) > 3 and k.lower() in corpus and k.lower() != role_focus.lower()
+    ]
+    if matched:
+        return (
+            f"{opener}, bringing {', '.join(m.lower() for m in matched[:3])} "
+            f"to {role_focus}."
+        )
+    strengths = [s for s in parsed.skills[:2]]
+    extra = ""
+    if strengths:
+        extra = (
+            " My profile shows solid "
+            + " and ".join(s.lower() for s in strengths)
+            + "."
+        )
+    return f"{opener}, moving into {role_focus}.{extra}"
+
+
 def build_custom(
     parsed: ParsedCv,
     role_focus: str,
     emphasize: list[str] | None = None,
     exclude: list[str] | None = None,
-) -> CvContent:
-    """Unlimited custom versions, e.g. a Marketing CV from operations experience.
-
-    Repositions genuine, transferable experience only. Exclusions are
-    the candidate's explicit choice of what to leave out.
+) -> tuple[CvContent, list[str]]:
+    """Unlimited custom versions, e.g. a Marketing CV from operations
+    experience. Repositions genuine, transferable experience only and
+    returns transparent notes explaining what matched / what's missing.
     """
     content = _build_content(parsed, LAYOUT_ROLE, role_focus)
     keys = list(emphasize or [])
-    keys += [k for k in ROLE_KEYWORDS.get(role_focus.lower(), [role_focus.lower()]) if k not in keys]
+    keys += [
+        k
+        for k in ROLE_KEYWORDS.get(role_focus.lower(), [role_focus.lower()])
+        if k not in [x.lower() for x in keys]
+    ]
+
+    # Role-targeted headline (positioning for the target role; the
+    # summary below stays strictly factual).
+    years = _years_of_experience(parsed)
+    headline = [role_focus]
+    if years:
+        headline.append(f"{years} yrs experience")
+    if parsed.location:
+        headline.append(parsed.location)
+    content.headline = " | ".join(headline)
+    content.summary = _custom_summary(parsed, role_focus, keys)
+
     content.skills = _order_skills(content.skills, keys)
     for e in content.experience:
         if e.bullets:
@@ -288,7 +357,37 @@ def build_custom(
             e.bullets = [b for b in e.bullets if not drop(b)]
         content.projects = [p for p in content.projects if not drop(p)]
         content.certifications = [c for c in content.certifications if not drop(c)]
-    return content
+
+    notes: list[str] = []
+    corpus = (
+        parsed.summary
+        + " "
+        + " ".join(parsed.skills)
+        + " "
+        + " ".join(b for e in parsed.experience for b in e.get("bullets", []))
+    ).lower()
+    matched = [
+        _prettify_term(k, parsed.skills)
+        for k in keys
+        if len(k) > 3 and k.lower() in corpus and k.lower() != role_focus.lower()
+    ]
+    if matched:
+        notes.append(
+            f"Skills matched to {role_focus}: {', '.join(matched[:5])} - moved to the front."
+        )
+    else:
+        strengths = ", ".join(s.lower() for s in parsed.skills[:3])
+        notes.append(
+            f"No {role_focus}-specific skills found in your CV yet, so this version "
+            "emphasises your transferable strengths"
+            + (f" ({strengths})" if strengths else "")
+            + f". Add real {role_focus} experience to your CV to strengthen it."
+        )
+    if emphasize:
+        notes.append("Emphasised: " + ", ".join(emphasize[:6]) + ".")
+    if exclude:
+        notes.append("Excluded: " + ", ".join(exclude[:6]) + ".")
+    return content, notes
 
 
 # --- job description keywords ---------------------------------------------

@@ -129,6 +129,7 @@ class CvVersionOut(BaseModel):
     title: str
     role_focus: str | None
     content: dict
+    notes: list[str] | None = None
     created_at: datetime
 
 

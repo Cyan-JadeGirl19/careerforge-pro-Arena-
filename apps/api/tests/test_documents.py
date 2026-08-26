@@ -197,6 +197,46 @@ def test_custom_version_emphasize_and_exclude(client, cv_id):
         assert not any("onboarding" in b.lower() for b in e["bullets"])
 
 
+def test_custom_marketing_repositions_honestly(client, cv_id):
+    """The sample CV has no marketing skills: the marketing version must
+    still visibly target the role (headline + pivot summary) and explain
+    transparently that no marketing-specific evidence was found."""
+    res = client.post(
+        f"{API}/cvs/{cv_id}/versions",
+        json={"kind": "custom", "role_focus": "marketing"},
+    )
+    assert res.status_code == 201, res.text
+    v = res.json()
+    content = v["content"]
+    # role-targeted headline, factual pivot summary (no invented experience)
+    assert content["headline"].lower().startswith("marketing")
+    assert "marketing" in content["summary"].lower()
+    assert "moving into marketing" in content["summary"].lower()
+    assert "Support Team Lead" in content["summary"]  # their real latest title
+    # transparent notes: nothing matched + emphasised recorded
+    assert v["notes"], "custom version must carry transparent notes"
+    assert any("No marketing-specific skills" in n for n in v["notes"])
+    # name/email still carried from the source, nothing invented
+    assert content["name"] == "Thando Ndlovu"
+
+
+def test_custom_role_with_matching_skills(client, cv_id):
+    """'operations' keywords genuinely exist in the sample CV: the version
+    should bring them forward and say so in the notes."""
+    res = client.post(
+        f"{API}/cvs/{cv_id}/versions",
+        json={"kind": "custom", "role_focus": "operations"},
+    )
+    assert res.status_code == 201, res.text
+    v = res.json()
+    content = v["content"]
+    assert content["headline"].lower().startswith("operations")
+    assert "bringing" in content["summary"].lower()
+    assert any(n.startswith("Skills matched to operations") for n in v["notes"])
+    skills = [s.lower() for s in content["skills"]]
+    assert skills[0] in ("operations", "data analysis", "stakeholder management")
+
+
 # --- tailoring -----------------------------------------------------------------
 
 

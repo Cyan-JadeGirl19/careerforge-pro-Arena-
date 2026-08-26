@@ -343,6 +343,18 @@ export default function CvStudioPage() {
                     {v.title} <span className="chip neutral">{KIND_LABEL[v.kind] ?? v.kind}</span>
                   </h4>
                   <p>{v.content.headline || v.content.summary.slice(0, 120)}</p>
+                  {v.content.summary && (
+                    <p className="muted" style={{ fontSize: 13 }}>
+                      {v.content.summary}
+                    </p>
+                  )}
+                  {v.notes && v.notes.length > 0 && (
+                    <div className="alert info" style={{ marginTop: 8 }}>
+                      {v.notes.map((n, k) => (
+                        <div key={k}>• {n}</div>
+                      ))}
+                    </div>
+                  )}
                   <div className="actions">
                     <a className="btn" href={exportUrl("versions", v.id, "docx")}>
                       DOCX

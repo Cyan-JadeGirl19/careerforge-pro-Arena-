@@ -63,6 +63,7 @@ def _version_out(v: CvVersion) -> CvVersionOut:
         title=v.title,
         role_focus=v.role_focus,
         content=json.loads(v.content_json),
+        notes=(json.loads(v.notes) if v.notes else None),
         created_at=v.created_at,
     )
 
@@ -94,6 +95,7 @@ def _build_version(
                 "message": "role_focus is required for role-specialist and custom versions.",
             },
         )
+    custom_notes: list[str] = []
     if kind == builders.KIND_ATS:
         content = builders.build_master_ats(parsed)
         title = "ATS Enterprise"
@@ -104,7 +106,9 @@ def _build_version(
         content = builders.build_master_role(parsed, role_focus)
         title = f"Master CV — {role_focus}"
     else:
-        content = builders.build_custom(parsed, role_focus, emphasize, exclude)
+        content, custom_notes = builders.build_custom(
+            parsed, role_focus, emphasize, exclude
+        )
         title = f"Custom — {role_focus}"
 
     content.source_profile_version = cv.id
@@ -118,6 +122,11 @@ def _build_version(
         title=title,
         role_focus=role_focus,
         content_json=json.dumps(content.to_dict()),
+        notes=(
+            json.dumps(custom_notes)
+            if kind == builders.KIND_CUSTOM and custom_notes
+            else None
+        ),
     )
     db.add(version)
     db.commit()

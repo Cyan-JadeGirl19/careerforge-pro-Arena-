@@ -111,6 +111,10 @@ class CvVersion(Base):
     title: Mapped[str] = mapped_column(String(200))
     role_focus: Mapped[str | None] = mapped_column(String(120), nullable=True)
     content_json: Mapped[str] = mapped_column(Text)
+    # Transparent notes for custom versions (what matched the role,
+    # what's missing, what was emphasised/excluded). UI-only - never
+    # part of the exported CV document.
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )
