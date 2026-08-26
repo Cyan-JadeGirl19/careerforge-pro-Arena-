@@ -22,6 +22,8 @@ import type {
   ConsentGrant,
   ConsentOut,
   CoverLetter,
+  CvEvidenceOut,
+  GapPlanOut,
   CvAnalysisOut,
   CvCreate,
   CvOut,
@@ -177,6 +179,16 @@ export const api = {
     request<TailorFromUrlOut>(`/profiles/${profileId}/tailor-from-url`, {
       method: "POST",
       body: JSON.stringify({ url, version_id: versionId || null }),
+    }),
+  gapPlan: (tailoredId: string) =>
+    request<GapPlanOut>(`/tailored/${tailoredId}/gap-plan`),
+  addCvEvidence: (
+    cvId: string,
+    body: { term: string; detail: string | null; where: "skill" | "experience" },
+  ) =>
+    request<CvEvidenceOut>(`/cvs/${cvId}/evidence`, {
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   getTailored: (id: string) => request<TailoredCv>(`/tailored/${id}`),
 

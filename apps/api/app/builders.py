@@ -102,14 +102,15 @@ STOPWORDS = {
     "have", "has", "that", "this", "from", "who", "what", "when", "where",
     "how", "why", "not", "but", "all", "can", "would", "should", "could",
     "able", "work", "working", "works", "role", "roles", "job", "jobs",
-    "experience", "required", "required", "including", "include",
+    "experience", "experiences", "required", "including", "include",
     "includes", "strong", "good", "excellent", "proven", "track", "record",
     "team", "teams", "environment", "company", "companies", "candidate",
     "candidates", "we", "us", "they", "their", "them", "then", "than",
     "more", "most", "other", "such", "each", "every", "any", "some",
     "new", "use", "used", "using", "well", "able", "plus", "also",
     "must", "may", "like", "one", "two", "three", "years", "year",
-    "years", "relevant", "related", "knowledge", "skills", "skill",
+    "week", "weeks", "month", "months", "relevant", "related",
+    "knowledge", "skills", "skill",
     "understanding", "familiarity", "familiar", "ability", "abilities",
     "ensure", "ensures", "help", "helps", "day", "daily", "across",
     "within", "between", "into", "over", "under", "after", "before",
@@ -119,6 +120,11 @@ STOPWORDS = {
     "apply", "application", "applications", "qualifications",
     "responsibilities", "requirements", "preferred", "ideal", "about",
     "who", "whom", "which", "those", "these", "there", "here", "now",
+    # JD filler that is not a skill - must never surface as a "gap"
+    "need", "needs", "needed", "manager", "managers", "position",
+    "positions", "tools", "tool", "ideal", "great", "best", "top",
+    "leading", "opportunity", "opportunities", "fast-paced", "etc",
+    "etc.", "plus", "etc",
 }
 
 
@@ -551,7 +557,20 @@ def tailor(
     """
     out = content.clone()
     keywords = extract_jd_keywords(jd_text)
-    corpus = content.all_text() + " " + parsed.summary.lower()
+    # Corpus = the frozen master PLUS the candidate's CURRENT CV (so genuine
+    # evidence added after the master was built still counts and flows into
+    # the tailored version - it never fabricates, only surfaces real facts).
+    parsed_corpus = " ".join(
+        [
+            parsed.summary,
+            " ".join(parsed.skills),
+            " ".join(parsed.certifications),
+            " ".join(parsed.projects),
+        ]
+        + [b for e in parsed.experience for b in e.get("bullets", [])]
+        + [e.get("title", "") for e in parsed.experience]
+    )
+    corpus = (content.all_text() + " " + parsed_corpus).lower()
 
     present: list[dict] = []
     gaps: list[str] = []

@@ -212,6 +212,24 @@ export interface TailorFromUrlOut {
   tailored: TailoredCv;
 }
 
+export interface GapPlanItem {
+  keyword: string;
+  closest_skill: string | null;
+  course: { title: string; provider: string; url: string; as_of: string } | null;
+  interview_line: string;
+}
+
+export interface GapPlanOut {
+  plan: GapPlanItem[];
+}
+
+export interface CvEvidenceOut {
+  cv_id: string;
+  added: { term: string; detail: string | null; where: string };
+  evidence_id: string;
+  message: string;
+}
+
 export interface RoleRecommendation {
   role: string;
   match_pct: number;

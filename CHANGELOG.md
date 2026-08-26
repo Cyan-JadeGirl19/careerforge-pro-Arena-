@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.19.0 - 2026-08-26
+
+**Honest gap handling** (gaps become actions, never fabrications):
+
+- `GET /tailored/{id}/gap-plan` — for every requirement your CV doesn't
+  yet show: your closest real skill to bridge with, a free real course
+  if it's learnable, and an honest one-line interview answer.
+- `POST /cvs/{id}/evidence` — the legitimate way to close a gap: the
+  candidate confirms they genuinely did it, it is written onto the CV
+  verbatim (skill or bullet on the latest role), provenance recorded
+  (self-reported, candidate-approved, unverified), and the next tailor
+  run closes the gap for real. Thin claims are rejected.
+- Re-tailoring now matches against the candidate's CURRENT CV, so
+  genuine evidence added later flows into tailored versions
+  automatically (surfaced, never invented).
+- JD keyword extraction no longer flags filler words ("need",
+  "manager", "tools"…) as gaps - only real skill terms.
+- UI: "Build my gap plan" under each tailored result - per-gap bridge
+  skill, free-course link, interview line, and an "I genuinely have
+  this — add evidence" flow.
+- 173 API tests passing (7 new), web build green, contract re-exported
+
 ## 0.18.0 - 2026-08-26
 
 **Paste a job URL → tailored CV in one step** (user request):

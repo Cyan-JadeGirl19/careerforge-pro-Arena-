@@ -3,7 +3,7 @@
   "info": {
     "title": "CareerForge Pro API",
     "description": "CV-first career acceleration for South African remote work. Human-supervised: sensitive actions require explicit consent.",
-    "version": "0.3.7"
+    "version": "0.3.8"
   },
   "paths": {
     "/api/v1/health": {
@@ -754,6 +754,59 @@
         }
       }
     },
+    "/api/v1/cvs/{cv_id}/evidence": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Add Cv Evidence",
+        "description": "Add GENUINE, self-reported evidence that closes a gap.\n\nThis is the legitimate way to fill a gap: the candidate confirms they\nactually did this, it is written onto the CV verbatim, and the\nprovenance is recorded (self-reported, candidate-approved). The app\nnever invents this on the candidate's behalf.",
+        "operationId": "add_cv_evidence_api_v1_cvs__cv_id__evidence_post",
+        "parameters": [
+          {
+            "name": "cv_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cv Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CvEvidenceIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvEvidenceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/cv-versions/{version_id}": {
       "get": {
         "tags": [
@@ -926,6 +979,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TailoredCvOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tailored/{tailored_id}/gap-plan": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Tailored Gap Plan",
+        "description": "Turn each unmet requirement into an honest action: closest real\nskill, a free course if learnable, and an interview line. Never\nfabricates - the way to close a gap is adding genuine evidence.",
+        "operationId": "tailored_gap_plan_api_v1_tailored__tailored_id__gap_plan_get",
+        "parameters": [
+          {
+            "name": "tailored_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tailored Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GapPlanOut"
                 }
               }
             }
@@ -5626,6 +5722,69 @@
         ],
         "title": "CvCreate"
       },
+      "CvEvidenceIn": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Term"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "where": {
+            "type": "string",
+            "pattern": "^(skill|experience)$",
+            "title": "Where",
+            "default": "skill"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term"
+        ],
+        "title": "CvEvidenceIn",
+        "description": "Genuine, self-reported evidence that closes a gap.\n\nGoes onto the CV verbatim - it must be true. Provenance is recorded\nin the Evidence table (self-reported, candidate-approved)."
+      },
+      "CvEvidenceOut": {
+        "properties": {
+          "cv_id": {
+            "type": "string",
+            "title": "Cv Id"
+          },
+          "added": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Added"
+          },
+          "evidence_id": {
+            "type": "string",
+            "title": "Evidence Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cv_id",
+          "added",
+          "evidence_id",
+          "message"
+        ],
+        "title": "CvEvidenceOut"
+      },
       "CvOut": {
         "properties": {
           "id": {
@@ -5997,6 +6156,23 @@
           "status"
         ],
         "title": "FollowUpStatusIn"
+      },
+      "GapPlanOut": {
+        "properties": {
+          "plan": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Plan"
+          }
+        },
+        "type": "object",
+        "required": [
+          "plan"
+        ],
+        "title": "GapPlanOut"
       },
       "GmailAuthorizeOut": {
         "properties": {

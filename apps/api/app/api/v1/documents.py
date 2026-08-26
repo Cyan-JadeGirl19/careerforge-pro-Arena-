@@ -10,15 +10,19 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ... import builders, export
+from ... import gaps as gaps_module
 from ...content import CvContent
 from ...consents import require_consent
 from ...db import get_db
-from ...models import CvRecord, CvVersion, JobDescription, Profile, TailoredCv
-from ...parsing import extract_file_text, parse_cv_text
+from ...models import CvRecord, CvVersion, Evidence, JobDescription, Profile, TailoredCv
+from ...parsing import BULLET_RE, ParsedCv, _is_heading, extract_file_text, parse_cv_text
 from ...schemas import (
     BuildMastersRequest,
+    CvEvidenceIn,
+    CvEvidenceOut,
     CvVersionCreate,
     CvVersionOut,
+    GapPlanOut,
     JobDescriptionCreate,
     JobDescriptionOut,
     ParsedCvOut,
@@ -195,6 +199,102 @@ def build_all_masters(
     return out
 
 
+# --- genuine evidence (closes gaps honestly) -----------------------------------
+
+
+def _insert_skill(text: str, term: str) -> str:
+    """Add a skill to the CV text (new line under the Skills heading, or a
+    new Skills section when absent)."""
+    lines = text.splitlines()
+    for i, ln in enumerate(lines):
+        h = _is_heading(ln)
+        if h == "skills":
+            lines.insert(i + 1, f"- {term}")
+            return "\n".join(lines)
+    return text.rstrip() + f"\n\nSkills\n- {term}\n"
+
+
+def _insert_experience_bullet(text: str, bullet: str) -> str:
+    """Add a bullet under the most recent role (first entry after the
+    Experience heading)."""
+    lines = text.splitlines()
+    in_exp = False
+    for i, ln in enumerate(lines):
+        h = _is_heading(ln)
+        if h is not None:
+            in_exp = h == "experience"
+            continue
+        if in_exp and ln.strip() and not BULLET_RE.match(ln):
+            lines.insert(i + 1, f"- {bullet}")
+            return "\n".join(lines)
+    raise ValueError("No experience entry found in your CV to attach this to.")
+
+
+@router.post("/cvs/{cv_id}/evidence", response_model=CvEvidenceOut, status_code=201)
+def add_cv_evidence(
+    cv_id: str, payload: CvEvidenceIn, db: Session = Depends(get_db)
+) -> CvEvidenceOut:
+    """Add GENUINE, self-reported evidence that closes a gap.
+
+    This is the legitimate way to fill a gap: the candidate confirms they
+    actually did this, it is written onto the CV verbatim, and the
+    provenance is recorded (self-reported, candidate-approved). The app
+    never invents this on the candidate's behalf.
+    """
+    cv = get_cv_or_404(db, cv_id)
+    require_consent(db, cv.profile_id, "profile_processing")
+    term = payload.term.strip()
+    detail = (payload.detail or "").strip()
+
+    if payload.where == "experience":
+        if len(detail) < 10:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "EVIDENCE_TOO_THIN",
+                    "message": "Describe what you actually did (a full sentence, "
+                    "10+ characters). It goes on your CV verbatim - it must be true.",
+                },
+            )
+        bullet = detail
+        try:
+            new_text = _insert_experience_bullet(cv.text, bullet)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "NO_EXPERIENCE", "message": str(exc)},
+            )
+    else:
+        new_text = _insert_skill(cv.text, term)
+
+    # Keep the parsed cache consistent with the new text.
+    parsed = parse_cv_text(new_text)
+    cv.text = new_text
+    cv.parsed_json = json.dumps(parsed.to_dict())
+
+    # Record provenance: self-reported, candidate-approved, unverified.
+    ev = Evidence(
+        id=str(uuid.uuid4()),
+        profile_id=cv.profile_id,
+        claim=f"{term}: {detail or 'listed as a skill'}",
+        source="self-reported via gap evidence",
+        verified=False,
+        candidate_approved=True,
+    )
+    db.add(ev)
+    db.commit()
+    db.refresh(cv)
+    return {
+        "cv_id": cv.id,
+        "added": {"term": term, "detail": detail, "where": payload.where},
+        "evidence_id": ev.id,
+        "message": (
+            f"Added to your CV. It must be true - employers can ask about it. "
+            "Re-run Tailor to close the gap."
+        ),
+    }
+
+
 def _guess_role_focus(cv: CvRecord, db: Session) -> str:
     """Best-effort target role from the parsed CV (candidate can override)."""
     parsed = _parsed_or_compute(cv, db)
@@ -334,6 +434,32 @@ def get_tailored_or_404(db: Session, tailored_id: str) -> TailoredCv:
 @router.get("/tailored/{tailored_id}", response_model=TailoredCvOut)
 def get_tailored(tailored_id: str, db: Session = Depends(get_db)) -> TailoredCvOut:
     return _tailored_out(get_tailored_or_404(db, tailored_id))
+
+
+@router.get("/tailored/{tailored_id}/gap-plan", response_model=GapPlanOut)
+def tailored_gap_plan(tailored_id: str, db: Session = Depends(get_db)) -> GapPlanOut:
+    """Turn each unmet requirement into an honest action: closest real
+    skill, a free course if learnable, and an interview line. Never
+    fabricates - the way to close a gap is adding genuine evidence."""
+    row = get_tailored_or_404(db, tailored_id)
+    report = json.loads(row.report_json)
+    gap_keywords = [
+        k["keyword"] for k in report.get("keywords", []) if not k.get("in_candidate_profile")
+    ]
+    version = db.get(CvVersion, row.version_id)
+    cv = db.get(CvRecord, version.base_cv_id) if version else None
+    if cv is None:
+        return GapPlanOut(plan=[])
+    parsed_dict = json.loads(cv.parsed_json) if cv.parsed_json else parse_cv_text(cv.text).to_dict()
+    parsed = ParsedCv(**{
+        k: parsed_dict[k]
+        for k in (
+            "name", "email", "phone", "location", "links", "summary",
+            "experience", "education", "skills", "certifications",
+            "projects", "languages",
+        )
+    })
+    return GapPlanOut(plan=gaps_module.gap_plan(gap_keywords, parsed))
 
 
 # --- upload & export -----------------------------------------------------------

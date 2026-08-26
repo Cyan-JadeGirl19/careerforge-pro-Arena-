@@ -7,6 +7,7 @@ import type {
   CvAnalysisOut,
   CvOut,
   CvVersion,
+  GapPlanItem,
   ParsedCv,
   TailoredCv,
 } from "../../../../../packages/contracts/types";
@@ -36,6 +37,12 @@ export default function CvStudioPage() {
   const [jdId, setJdId] = useState<string | null>(null);
   const [jobUrl, setJobUrl] = useState("");
   const [urlJob, setUrlJob] = useState<{ id: string; title: string; company: string | null } | null>(null);
+  const [gapPlan, setGapPlan] = useState<GapPlanItem[] | null>(null);
+  const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
+  const [evidenceWhere, setEvidenceWhere] = useState<"skill" | "experience">("skill");
+  const [evidenceTerm, setEvidenceTerm] = useState("");
+  const [evidenceDetail, setEvidenceDetail] = useState("");
+  const [evidenceNote, setEvidenceNote] = useState<string | null>(null);
   // custom version
   const [customRole, setCustomRole] = useState("");
   const [customEmph, setCustomEmph] = useState("");
@@ -181,6 +188,7 @@ export default function CvStudioPage() {
     setBusy("tailor");
     setError(null);
     setUrlJob(null);
+    setGapPlan(null);
     try {
       const res = await api.tailorVersion(vid, jdId);
       setTailored(await api.getTailored(res.tailored_cv_id));
@@ -198,10 +206,53 @@ export default function CvStudioPage() {
     try {
       const res = await api.tailorFromUrl(session.profileId, jobUrl.trim());
       setTailored(res.tailored);
+      setGapPlan(null);
       setJdId(res.jd_id);
       setUrlJob({ id: res.job.id, title: res.job.title, company: res.job.company });
     } catch (e) {
       fail(e);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const buildGapPlan = async () => {
+    if (!tailored) return;
+    setBusy("gap");
+    setError(null);
+    setEvidenceNote(null);
+    try {
+      const res = await api.gapPlan(tailored.id);
+      setGapPlan(res.plan);
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openEvidence = (keyword: string) => {
+    setEvidenceFor(evidenceFor === keyword ? null : keyword);
+    setEvidenceWhere("skill");
+    setEvidenceTerm(keyword);
+    setEvidenceDetail("");
+    setEvidenceNote(null);
+  };
+
+  const submitEvidence = async (keyword: string) => {
+    if (!cv) return;
+    setBusy("ev");
+    setError(null);
+    try {
+      const body =
+        evidenceWhere === "skill"
+          ? { term: evidenceTerm.trim() || keyword, detail: null, where: "skill" as const }
+          : { term: keyword, detail: evidenceDetail.trim() || null, where: "experience" as const };
+      const res = await api.addCvEvidence(cv.id, body);
+      setEvidenceNote(res.message);
+      setEvidenceDetail("");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not add the evidence.");
     } finally {
       setBusy(null);
     }
@@ -512,13 +563,91 @@ export default function CvStudioPage() {
                   {tailored.report.gaps.length > 0 && (
                     <>
                       <p style={{ marginTop: 8 }}>
-                        <b>Gaps (answer these with real evidence — they are never filled in):</b>
+                        <b>
+                          Gaps — the job wants these, your CV doesn't show them yet. They are never
+                          filled in automatically; here's how you close each one honestly:
+                        </b>
                       </p>
                       <ul style={{ fontSize: 13, color: "var(--muted)", paddingLeft: 18 }}>
                         {tailored.report.gaps.map((g) => (
                           <li key={g}>{g}</li>
                         ))}
                       </ul>
+                      <div className="row" style={{ marginTop: 10, alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                        <button className="btn" onClick={buildGapPlan} disabled={busy === "gap"}>
+                          {busy === "gap" ? "Building…" : gapPlan ? "Rebuild my gap plan" : "Build my gap plan"}
+                        </button>
+                        <span className="muted" style={{ fontSize: 12.5 }}>
+                          Per gap: your closest real skill to bridge with, a free course if it's
+                          learnable, the honest interview line — or add genuine evidence to close it.
+                        </span>
+                      </div>
+                      {gapPlan && (
+                        <div className="stack" style={{ marginTop: 10 }}>
+                          {gapPlan.map((g) => (
+                            <div className="item" key={g.keyword}>
+                              <div className="row" style={{ flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                                <b style={{ fontSize: 14 }}>{g.keyword}</b>
+                                {g.closest_skill && (
+                                  <span className="chip">bridge with: {g.closest_skill}</span>
+                                )}
+                                {g.course && (
+                                  <a className="chip" href={g.course.url} target="_blank" rel="noreferrer">
+                                    free course: {g.course.title}
+                                  </a>
+                                )}
+                                <span style={{ flex: 1 }} />
+                                <button
+                                  className="btn secondary"
+                                  style={{ padding: "5px 10px", fontSize: 12.5 }}
+                                  onClick={() => openEvidence(g.keyword)}
+                                >
+                                  {evidenceFor === g.keyword ? "Cancel" : "I genuinely have this — add evidence"}
+                                </button>
+                              </div>
+                              <p className="muted" style={{ fontSize: 13, margin: "6px 0" }}>
+                                In the interview: {g.interview_line}
+                              </p>
+                              {evidenceFor === g.keyword && (
+                                <>
+                                  <div className="row" style={{ flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+                                    <select
+                                      value={evidenceWhere}
+                                      onChange={(e) => setEvidenceWhere(e.target.value as "skill" | "experience")}
+                                      style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px" }}
+                                    >
+                                      <option value="skill">Add as a skill</option>
+                                      <option value="experience">Add to my latest role</option>
+                                    </select>
+                                    <input
+                                      value={evidenceWhere === "skill" ? evidenceTerm : evidenceDetail}
+                                      onChange={(e) =>
+                                        evidenceWhere === "skill"
+                                          ? setEvidenceTerm(e.target.value)
+                                          : setEvidenceDetail(e.target.value)
+                                      }
+                                      placeholder={
+                                        evidenceWhere === "skill"
+                                          ? "e.g. CRM (HubSpot)"
+                                          : "What you actually did — one true sentence, e.g. “Managed 300+ customer records in Excel for two years”"
+                                      }
+                                      style={{ flex: 2, minWidth: 260, border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px" }}
+                                    />
+                                    <button className="btn" onClick={() => submitEvidence(g.keyword)} disabled={busy === "ev"}>
+                                      {busy === "ev" ? "Adding…" : "Add to my CV"}
+                                    </button>
+                                  </div>
+                                  {evidenceNote && (
+                                    <p className="alert ok" style={{ marginTop: 8, fontSize: 13 }}>
+                                      {evidenceNote}
+                                    </p>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </>
                   )}
                   {tailored.report.summary_keywords_added && tailored.report.summary_keywords_added.length > 0 && (

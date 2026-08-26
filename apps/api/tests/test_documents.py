@@ -468,3 +468,104 @@ def test_erasure_covers_new_tables(client, consented_profile, cv_id):
     assert client.get(f"{API}/cv-versions/{v['id']}").status_code == 404
     assert client.get(f"{API}/tailored/{tailored['id']}").status_code == 404
     assert client.get(f"{API}/cvs/{cv_id}").status_code == 404
+
+
+# --- honest gap handling: gap plan + genuine evidence -------------------------
+
+from app import gaps as gaps_module  # noqa: E402
+from app.parsing import parse_cv_text  # noqa: E402
+
+
+def test_gap_plan_closest_skill_and_course():
+    parsed = parse_cv_text("Jane\njane@x.com\nSkills\nsalesforce, excel, communication\nExperience\nAgent, Co (2020 - present)\n- tickets")
+    plan = gaps_module.gap_plan(["crm", "sql"], parsed)
+    by_kw = {p["keyword"]: p for p in plan}
+    assert by_kw["crm"]["closest_skill"] == "salesforce", "bridge via KEYWORD_BRIDGES"
+    assert by_kw["sql"]["course"]["url"] == "https://sqlbolt.com/"
+    assert "haven't used" in by_kw["crm"]["interview_line"].lower() or "I haven" in by_kw["crm"]["interview_line"]
+
+
+def test_gap_plan_no_closest_skill_honest_line():
+    parsed = parse_cv_text("Jane\njane@x.com\nSkills\nexcel\nExperience\nAgent, Co (2020 - present)\n- tickets")
+    plan = gaps_module.gap_plan(["blockchain"], parsed)
+    assert plan[0]["closest_skill"] is None
+    assert "don't have direct blockchain experience" in plan[0]["interview_line"]
+
+
+def test_evidence_adds_skill(client, cv_id):
+    res = client.post(
+        f"{API}/cvs/{cv_id}/evidence",
+        json={"term": "crm", "where": "skill"},
+    )
+    assert res.status_code == 201, res.text
+    assert res.json()["added"]["term"] == "crm"
+    cv = client.get(f"{API}/cvs/{cv_id}").json()
+    parsed = parse_cv_text(cv["text"])
+    assert any(s.lower() == "crm" for s in parsed.skills)
+
+
+def test_evidence_adds_experience_bullet(client, cv_id):
+    res = client.post(
+        f"{API}/cvs/{cv_id}/evidence",
+        json={
+            "term": "retention",
+            "detail": "Tracked cancellations monthly and recovered 5 at-risk accounts",
+            "where": "experience",
+        },
+    )
+    assert res.status_code == 201, res.text
+    cv = client.get(f"{API}/cvs/{cv_id}").json()
+    parsed = parse_cv_text(cv["text"])
+    first = parsed.experience[0]["bullets"]
+    assert any("recovered 5 at-risk accounts" in b for b in first)
+
+
+def test_evidence_experience_requires_substance(client, cv_id):
+    res = client.post(
+        f"{API}/cvs/{cv_id}/evidence",
+        json={"term": "retention", "detail": "short", "where": "experience"},
+    )
+    assert res.status_code == 422
+    assert res.json()["detail"]["code"] == "EVIDENCE_TOO_THIN"
+
+
+def test_evidence_closes_gap_on_retalor(client, consented_profile, cv_id):
+    jd = client.post(
+        f"{API}/profiles/{consented_profile}/job-descriptions",
+        json={
+            "title": "Customer Success Manager",
+            "text": "We need a manager with CRM tools, customer success and retention. " * 3,
+        },
+    ).json()
+    version = client.post(
+        f"{API}/cvs/{cv_id}/versions", json={"kind": "master_role", "role_focus": "customer success"}
+    ).json()
+    t1 = client.post(f"{API}/cv-versions/{version['id']}/tailor", json={"jd_id": jd["id"]}).json()
+    assert any(k["keyword"] == "crm" and not k["in_candidate_profile"] for k in t1["report"]["keywords"])
+
+    # candidate genuinely has it: add it as a skill
+    client.post(f"{API}/cvs/{cv_id}/evidence", json={"term": "CRM", "where": "skill"})
+
+    t2 = client.post(f"{API}/cv-versions/{version['id']}/tailor", json={"jd_id": jd["id"]}).json()
+    crm = next(k for k in t2["report"]["keywords"] if k["keyword"] == "crm")
+    assert crm["in_candidate_profile"] is True, "gap closed by genuine evidence"
+
+
+def test_gap_plan_endpoint(client, consented_profile, cv_id):
+    jd = client.post(
+        f"{API}/profiles/{consented_profile}/job-descriptions",
+        json={
+            "title": "Customer Success Manager",
+            "text": "We need a manager with CRM tools, customer success and retention. " * 3,
+        },
+    ).json()
+    version = client.post(
+        f"{API}/cvs/{cv_id}/versions", json={"kind": "master_role", "role_focus": "customer success"}
+    ).json()
+    t = client.post(f"{API}/cv-versions/{version['id']}/tailor", json={"jd_id": jd["id"]}).json()
+    res = client.get(f"{API}/tailored/{t['id']}/gap-plan")
+    assert res.status_code == 200
+    kws = {p["keyword"] for p in res.json()["plan"]}
+    assert "crm" in kws
+    for p in res.json()["plan"]:
+        assert p["interview_line"]

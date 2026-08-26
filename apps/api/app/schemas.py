@@ -114,6 +114,28 @@ class CvVersionCreate(BaseModel):
     exclude: list[str] = Field(default_factory=list, max_length=20)
 
 
+class CvEvidenceIn(BaseModel):
+    """Genuine, self-reported evidence that closes a gap.
+
+    Goes onto the CV verbatim - it must be true. Provenance is recorded
+    in the Evidence table (self-reported, candidate-approved).
+    """
+    term: str = Field(min_length=1, max_length=60)
+    detail: str | None = Field(default=None, max_length=300)
+    where: str = Field(default="skill", pattern="^(skill|experience)$")
+
+
+class GapPlanOut(BaseModel):
+    plan: list[dict]
+
+
+class CvEvidenceOut(BaseModel):
+    cv_id: str
+    added: dict
+    evidence_id: str
+    message: str
+
+
 class BuildMastersRequest(BaseModel):
     role_focus: str | None = Field(
         default=None, max_length=120,
