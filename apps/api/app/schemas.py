@@ -295,6 +295,17 @@ class VideoJobOut(BaseModel):
     error: str | None = None
 
 
+class TrimRequest(BaseModel):
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
+
+
+class IntroCardRequest(BaseModel):
+    name: str | None = Field(default=None, max_length=60)
+    role: str | None = Field(default=None, max_length=80)
+    seconds: int = Field(default=3, ge=2, le=10)
+
+
 class ApplicationStatusUpdate(BaseModel):
     status: str = Field(
         pattern="^(saved|ready|applied|phone_screen|interview|offer|rejected|archived)$"

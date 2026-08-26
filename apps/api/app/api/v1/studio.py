@@ -44,7 +44,9 @@ from ...schemas import (
     CaptionsRequest,
     CoverLetterCreate,
     CoverLetterOut,
+    IntroCardRequest,
     RoleRecommendationOut,
+    TrimRequest,
     VideoAnalyzeOut,
     VideoCreate,
     VideoEnhanceRequest,
@@ -53,6 +55,9 @@ from ...schemas import (
     VideoMediaUpdate,
     VideoOut,
 )
+
+HEADSHOT_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MAX_HEADSHOT_BYTES = 5 * 1024 * 1024
 from . import applications_internal
 from .documents import get_cv_or_404, get_jd_or_404, get_version_or_404
 from .profiles import get_profile_or_404
@@ -979,6 +984,307 @@ def video_job_status(job_id: str) -> VideoJobOut:
             detail={"code": "JOB_NOT_FOUND", "message": "Job not found (it may have expired)."},
         )
     return VideoJobOut(**job.to_out())
+
+
+# --- trim, headshot, intro card ----------------------------------------------------
+
+
+def _latest_video_media(db: Session, video_id: str) -> VideoMedia | None:
+    return db.scalars(
+        select(VideoMedia)
+        .where(
+            VideoMedia.video_response_id == video_id,
+            VideoMedia.kind.in_(list(ffmpegx.VIDEO_KINDS)),
+        )
+        .order_by(VideoMedia.created_at.desc())
+    ).first()
+
+
+def _read_probe(m: VideoMedia) -> dict:
+    if m.probe_json:
+        try:
+            return json.loads(m.probe_json)
+        except json.JSONDecodeError:
+            pass
+    return {}
+
+
+def _probe_and_report(data: bytes, target_seconds: int | None) -> tuple[ffmpegx.MediaProbe, dict]:
+    with ffmpegx.temp_media(data) as p2:
+        probe2 = ffmpegx.probe_path(p2)
+        if probe2.audio_codec:
+            audio2 = ffmpegx.analyze_audio(p2)
+            sil2 = ffmpegx.detect_silences(p2)
+        else:
+            audio2 = {"mean_volume": None, "max_volume": None}
+            sil2 = []
+        light2 = ffmpegx.measure_lighting(p2)
+    return probe2, quality.build_report(probe2, audio2, sil2, light2, target_seconds)
+
+
+def _latest_role_title(db: Session, profile_id: str) -> str | None:
+    cvs = db.scalars(select(CvRecord).where(CvRecord.profile_id == profile_id)).all()
+    if not cvs:
+        return None
+    try:
+        parsed = _parsed_from_cv(cvs[-1], db)
+    except Exception:
+        return None
+    for e in reversed(parsed.experience):
+        t = (e.get("title") or "").strip()
+        if t:
+            return t[:80]
+    return None
+
+
+@router.post("/videos/{video_id}/media/{media_id}/trim", response_model=VideoJobOut, status_code=202)
+def trim_video_media(
+    video_id: str, media_id: str, payload: TrimRequest, db: Session = Depends(get_db)
+) -> VideoJobOut:
+    """Cut [start, end] out of a take -> new MP4 (background job)."""
+    v = get_video_or_404(db, video_id)
+    m = get_media_or_404(db, v, media_id)
+    if m.kind not in ffmpegx.VIDEO_KINDS:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "NOT_A_VIDEO", "message": "Trim applies to video files."},
+        )
+    duration = _read_probe(m).get("duration")
+    if not duration:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "UNKNOWN_DURATION", "message": "Could not read the video length."},
+        )
+    if not (0 <= payload.start < payload.end <= duration + 0.25):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "BAD_TRIM_RANGE",
+                "message": f"Trim range must sit inside the {duration:.1f}s video (start < end).",
+            },
+        )
+    if payload.end - payload.start < 2:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "BAD_TRIM_RANGE", "message": "Trimmed clip must be at least 2 seconds."},
+        )
+    job = jobs.submit("trim", _trim_worker, v.id, m.id, payload.start, payload.end)
+    return VideoJobOut(**job.to_out())
+
+
+def _trim_worker(job: jobs.Job, video_id: str, media_id: str, start: float, end: float) -> None:
+    db = SessionLocal()
+    try:
+        job.phase = "reading media"
+        job.progress = 0.05
+        v = db.get(VideoResponse, video_id)
+        m = db.get(VideoMedia, media_id)
+        if v is None or m is None:
+            raise RuntimeError("Video or media no longer exists.")
+        job.phase = "trimming"
+        job.progress = 0.3
+        with ffmpegx.temp_media(m.data, suffix=_suffix_for(m)) as src, ffmpegx.temp_out(".mp4") as dst:
+            ffmpegx.trim_video(src, dst, start, end)
+            out = dst.read_bytes()
+        job.phase = "analysing result"
+        job.progress = 0.8
+        stem = re.sub(r"\.[a-z0-9]+$", "", m.filename) or "response"
+        new_m = VideoMedia(
+            id=str(uuid.uuid4()),
+            video_response_id=v.id,
+            kind="enhanced",
+            filename=f"{stem}-trimmed.mp4",
+            content_type="video/mp4",
+            size=len(out),
+            data=out,
+        )
+        db.add(new_m)
+        db.flush()
+        probe2, report = _probe_and_report(out, v.target_seconds)
+        new_m.probe_json = json.dumps(probe2.to_dict())
+        new_m.quality_json = json.dumps(report)
+        db.commit()
+        db.refresh(new_m)
+        job.progress = 1.0
+        job.result = {"media_id": new_m.id, "report": report}
+    finally:
+        db.close()
+
+
+@router.post("/videos/{video_id}/media-headshot", response_model=VideoOut, status_code=201)
+def upload_headshot(
+    video_id: str,
+    file: UploadFile = File(...),
+    likeness_consent: bool = Form(False),
+    db: Session = Depends(get_db),
+) -> VideoOut:
+    """Store an approved headshot for the intro card / thumbnail."""
+    v = get_video_or_404(db, video_id)
+    require_consent(db, v.profile_id, "media_use")
+    if not likeness_consent:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "LIKENESS_CONSENT_REQUIRED",
+                "message": "Confirm this photo is you (or you have permission to use it) first.",
+            },
+        )
+    ct = (file.content_type or "").lower()
+    if ct not in HEADSHOT_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail={"code": "UNSUPPORTED_MEDIA_TYPE", "message": "Upload a JPG, PNG or WebP photo."},
+        )
+    chunks: list[bytes] = []
+    size = 0
+    while True:
+        chunk = file.file.read(1024 * 1024)
+        if not chunk:
+            break
+        size += len(chunk)
+        if size > MAX_HEADSHOT_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail={"code": "MEDIA_TOO_LARGE", "message": "Headshot must be under 5 MB."},
+            )
+        chunks.append(chunk)
+    data = b"".join(chunks)
+    if len(data) < 1024:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "EMPTY_MEDIA", "message": "That file is too small to be a photo."},
+        )
+    m = VideoMedia(
+        id=str(uuid.uuid4()),
+        video_response_id=v.id,
+        kind="headshot",
+        filename=(file.filename or "headshot")[:300],
+        content_type=ct,
+        size=size,
+        data=data,
+    )
+    db.add(m)
+    v.likeness_consent = True
+    db.commit()
+    db.refresh(v)
+    return _video_out(v)
+
+
+@router.post("/videos/{video_id}/intro-card", response_model=VideoJobOut, status_code=202)
+def build_intro_card(
+    video_id: str, payload: IntroCardRequest, db: Session = Depends(get_db)
+) -> VideoJobOut:
+    """Prepend a 2-10s intro card (name, role, approved headshot) to the
+    latest video, and make a 1280x720 thumbnail PNG. Background job."""
+    v = get_video_or_404(db, video_id)
+    source = _latest_video_media(db, v.id)
+    if source is None:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "NO_VIDEO", "message": "Upload or record a video first."},
+        )
+    headshot = db.scalars(
+        select(VideoMedia)
+        .where(VideoMedia.video_response_id == v.id, VideoMedia.kind == "headshot")
+        .order_by(VideoMedia.created_at.desc())
+    ).first()
+    if headshot is None:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "NO_HEADSHOT", "message": "Upload an approved headshot first."},
+        )
+    profile = db.get(Profile, v.profile_id)
+    name = (payload.name or "").strip()
+    if not name and profile:
+        name = f"{profile.first_name or ''} {profile.last_name or ''}".strip()
+    role = (payload.role or "").strip()
+    if not role:
+        role = _latest_role_title(db, v.profile_id) or ""
+    if not name:
+        name = "Candidate"
+    job = jobs.submit("intro-card", _intro_card_worker, v.id, payload.seconds, name, role)
+    return VideoJobOut(**job.to_out())
+
+
+def _intro_card_worker(job: jobs.Job, video_id: str, seconds: int, name: str, role: str) -> None:
+    db = SessionLocal()
+    try:
+        job.phase = "reading media"
+        job.progress = 0.05
+        v = db.get(VideoResponse, video_id)
+        source = _latest_video_media(db, video_id) if v else None
+        headshot = (
+            db.scalars(
+                select(VideoMedia)
+                .where(VideoMedia.video_response_id == video_id, VideoMedia.kind == "headshot")
+                .order_by(VideoMedia.created_at.desc())
+            ).first()
+            if v
+            else None
+        )
+        if v is None or source is None or headshot is None:
+            raise RuntimeError("Video, media or headshot no longer exists.")
+        # All temps stay open until the concat reads them (temp files are
+        # removed when their context manager exits).
+        with ffmpegx.temp_media(headshot.data, suffix=".png") as hs, \
+             ffmpegx.temp_media(source.data, suffix=_suffix_for(source)) as src, \
+             ffmpegx.temp_out(".png") as card, \
+             ffmpegx.temp_out(".mp4") as intro, \
+             ffmpegx.temp_out(".mp4") as norm, \
+             ffmpegx.temp_out(".mp4") as out, \
+             ffmpegx.temp_out(".png") as thumb:
+            probe = ffmpegx.probe_path(src)
+            job.phase = "building intro card"
+            job.progress = 0.3
+            ffmpegx.build_intro_image(card, hs, name, role)
+            ffmpegx.build_intro_card(intro, card, seconds)
+            job.phase = "preparing video"
+            job.progress = 0.5
+            ffmpegx.normalize_source(src, norm, has_audio=bool(probe.audio_codec))
+            job.phase = "combining"
+            job.progress = 0.75
+            ffmpegx.concat_mp4([intro, norm], out)
+            out_data = out.read_bytes()
+            job.phase = "making thumbnail"
+            job.progress = 0.9
+            ffmpegx.make_thumbnail(
+                src, thumb, at=min(2.0, (probe.duration or 6.0) * 0.25)
+            )
+            thumb_data = thumb.read_bytes()
+
+        job.phase = "analysing result"
+        job.progress = 0.95
+        stem = re.sub(r"\.[a-z0-9]+$", "", source.filename) or "response"
+        new_m = VideoMedia(
+            id=str(uuid.uuid4()),
+            video_response_id=v.id,
+            kind="enhanced",
+            filename=f"{stem}-with-intro.mp4",
+            content_type="video/mp4",
+            size=len(out_data),
+            data=out_data,
+        )
+        thumb_m = VideoMedia(
+            id=str(uuid.uuid4()),
+            video_response_id=v.id,
+            kind="thumbnail",
+            filename=f"{stem}-thumbnail.png",
+            content_type="image/png",
+            size=len(thumb_data),
+            data=thumb_data,
+        )
+        db.add(new_m)
+        db.add(thumb_m)
+        db.flush()
+        probe2, report = _probe_and_report(out_data, v.target_seconds)
+        new_m.probe_json = json.dumps(probe2.to_dict())
+        new_m.quality_json = json.dumps(report)
+        db.commit()
+        db.refresh(new_m)
+        job.progress = 1.0
+        job.result = {"media_id": new_m.id, "thumbnail_id": thumb_m.id, "report": report}
+    finally:
+        db.close()
 
 
 # --- auto pipeline ---------------------------------------------------------------

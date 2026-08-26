@@ -16,6 +16,8 @@ dependencies = [
     "python-multipart>=0.0.9",
     # Encrypts the candidate's Gmail refresh token at rest.
     "cryptography>=42",
+    # Renders the video intro card (name/role text + headshot) as PNG.
+    "pillow>=10",
     # Static ffmpeg binary (bundled in the wheel) for video analysis,
     # enhancement and export. Works in the sandbox, CI and Render without
     # any system-level installation.

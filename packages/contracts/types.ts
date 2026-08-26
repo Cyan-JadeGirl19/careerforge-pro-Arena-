@@ -219,7 +219,7 @@ export interface CoverLetter {
 
 export interface VideoMedia {
   id: string;
-  kind: "original" | "enhanced" | "captions" | "audio";
+  kind: "original" | "enhanced" | "captions" | "audio" | "headshot" | "thumbnail";
   filename: string;
   content_type: string;
   size: number;

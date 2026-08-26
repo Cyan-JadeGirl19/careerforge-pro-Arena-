@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Iterator
 
 from imageio_ffmpeg import get_ffmpeg_exe
+from PIL import Image, ImageDraw, ImageFont
 
 FFMPEG_BIN = get_ffmpeg_exe()
 
@@ -332,4 +333,151 @@ def make_test_clip(path: Path, seconds: int = 6) -> None:
             "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(path),
         ],
         timeout=300,
+    )
+
+
+# --- trimming, intro cards, thumbnails -----------------------------------------
+
+# Fonts are committed to the repo (DejaVu - freely licensed) so drawtext
+# works on hosts without system fonts (Render buildpack image included).
+FONT_DIR = Path(__file__).resolve().parent / "fonts"
+FONT_REGULAR = FONT_DIR / "DejaVuSans.ttf"
+FONT_BOLD = FONT_DIR / "DejaVuSans-Bold.ttf"
+
+INTRO_W, INTRO_H, INTRO_FPS = 1280, 720, 30
+
+
+def _sanitize_text(value: str, max_len: int = 60) -> str:
+    """Tidy a name/role for the intro card (unicode-safe, length-capped)."""
+    out = re.sub(r"[\x00-\x1f\x7f]", " ", (value or "").strip())
+    out = re.sub(r"\s+", " ", out)
+    return out[:max_len].strip()
+
+
+def build_intro_image(
+    dst: Path, headshot: Path, name: str, role: str
+) -> None:
+    """Render the intro card as a 1280x720 PNG (Pillow - no ffmpeg text
+    filters required, so it works on hosts without system fonts)."""
+    bg = Image.new("RGB", (INTRO_W, INTRO_H), (16, 18, 22))
+    # headshot in a fixed 500x460 box, top-right
+    try:
+        photo = Image.open(headshot).convert("RGB")
+    except Exception:
+        photo = None
+    if photo is not None:
+        photo.thumbnail((500, 460), Image.LANCZOS)
+        box = Image.new("RGB", (500, 460), (16, 18, 22))
+        box.paste(photo, ((500 - photo.width) // 2, (460 - photo.height) // 2))
+        bg.paste(box, (720, 130))
+    draw = ImageDraw.Draw(bg)
+    name = _sanitize_text(name, 40) or "Candidate"
+    role = _sanitize_text(role, 80)
+
+    def fit(size: int, max_px: int) -> int:
+        f = ImageFont.truetype(str(FONT_BOLD), size)
+        while size > 36 and draw.textlength(name, font=f) > max_px:
+            size -= 4
+            f = ImageFont.truetype(str(FONT_BOLD), size)
+        return size
+
+    name_size = fit(84, 1120)
+    draw.text((80, 270), name, font=ImageFont.truetype(str(FONT_BOLD), name_size), fill=(255, 255, 255))
+    if role:
+        role_size = 44
+        rf = ImageFont.truetype(str(FONT_REGULAR), role_size)
+        while role_size > 24 and draw.textlength(role, font=rf) > 1120:
+            role_size -= 2
+            rf = ImageFont.truetype(str(FONT_REGULAR), role_size)
+        draw.text((80, 410), role, font=rf, fill=(170, 178, 191))
+    bg.save(dst)
+
+
+def trim_video(src: Path, dst: Path, start: float, end: float, timeout: int = 900) -> None:
+    """Cut [start, end] out of the source and re-encode to MP4."""
+    run_ffmpeg(
+        [
+            "-hide_banner", "-y",
+            "-ss", f"{max(0.0, start):.3f}",
+            "-t", f"{max(0.0, end - start):.3f}",
+            "-i", str(src),
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
+            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
+            "-movflags", "+faststart", str(dst),
+        ],
+        timeout=timeout,
+    )
+
+
+def build_intro_card(dst: Path, card: Path, seconds: int, timeout: int = 600) -> None:
+    """Turn the rendered card PNG into a silent H.264 intro clip."""
+    run_ffmpeg(
+        [
+            "-hide_banner", "-y",
+            "-loop", "1", "-framerate", str(INTRO_FPS), "-i", str(card),
+            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-t", str(seconds),
+            "-vf", f"scale={INTRO_W}:{INTRO_H},format=yuv420p",
+            "-r", str(INTRO_FPS),
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
+            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
+            "-shortest", str(dst),
+        ],
+        timeout=timeout,
+    )
+
+
+def normalize_source(src: Path, dst: Path, has_audio: bool, timeout: int = 900) -> None:
+    """Re-encode to exactly the concat-target params (1280x720@30, aac 44.1k)."""
+    args = ["-hide_banner", "-y"]
+    if not has_audio:
+        # silent audio is input 0, the source is input 1
+        args += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
+        video_map, audio_map = "1:v:0", "0:a:0"
+    else:
+        video_map, audio_map = "0:v:0", "0:a:0"
+    args += [
+        "-i", str(src),
+        "-map", video_map,
+        "-map", audio_map,
+        "-vf",
+        f"scale={INTRO_W}:{INTRO_H}:force_original_aspect_ratio=decrease,"
+        f"pad={INTRO_W}:{INTRO_H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1",
+        "-r", str(INTRO_FPS),
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2",
+    ]
+    if not has_audio:
+        args += ["-shortest"]
+    args += ["-movflags", "+faststart", str(dst)]
+    run_ffmpeg(args, timeout=timeout)
+
+
+def concat_mp4(parts: list[Path], dst: Path, timeout: int = 300) -> None:
+    """Stream-copy concat (all parts must share codec parameters)."""
+    fd, list_path = tempfile.mkstemp(suffix=".txt", prefix="cfconcat-")
+    try:
+        with os.fdopen(fd, "w") as fh:
+            fh.write("".join(f"file '{p}'\n" for p in parts))
+        run_ffmpeg(
+            ["-hide_banner", "-y", "-f", "concat", "-safe", "0",
+             "-i", list_path, "-c", "copy", str(dst)],
+            timeout=timeout,
+        )
+    finally:
+        _unlink(list_path)
+
+
+def make_thumbnail(src: Path, dst: Path, at: float, timeout: int = 120) -> None:
+    """A single 1280x720 PNG frame from the source."""
+    run_ffmpeg(
+        [
+            "-hide_banner", "-y",
+            "-ss", f"{max(0.0, at):.3f}", "-i", str(src),
+            "-vf",
+            f"scale={INTRO_W}:{INTRO_H}:force_original_aspect_ratio=decrease,"
+            f"pad={INTRO_W}:{INTRO_H}:(ow-iw)/2:(oh-ih)/2:color=black",
+            "-frames:v", "1", str(dst),
+        ],
+        timeout=timeout,
     )

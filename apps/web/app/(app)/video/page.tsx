@@ -88,6 +88,12 @@ export default function VideoStudioPage() {
     burn: false,
   });
   const [enhanceSource, setEnhanceSource] = useState<string>("");
+  const [trimFor, setTrimFor] = useState<string | null>(null);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(0);
+  const [introName, setIntroName] = useState("");
+  const [introRole, setIntroRole] = useState("");
+  const [introSeconds, setIntroSeconds] = useState(3);
 
   const loadRecordings = useCallback(async (applicationId?: string) => {
     try {
@@ -349,6 +355,74 @@ export default function VideoStudioPage() {
     }
   };
 
+  const doTrim = async (mediaId: string) => {
+    if (!video) return;
+    setServerBusy("trim");
+    setError(null);
+    try {
+      const job = await api.trimVideoMedia(video.id, mediaId, {
+        start: trimStart,
+        end: trimEnd,
+      });
+      const result = await runJob(job.job_id);
+      await refreshVideo();
+      setTrimFor(null);
+      if (result && typeof result.media_id === "string" && result.report) {
+        setReport({ mediaId: result.media_id as string, report: result.report as VideoQualityReport });
+      }
+      setSavedNote("Trimmed MP4 ready in your files below.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Trim failed.");
+    } finally {
+      setServerBusy(null);
+    }
+  };
+
+  const doHeadshot = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!video || !f) return;
+    if (!consent) {
+      setError("Tick the consent first — we need your confirmation that this photo is you (or you have permission).");
+      return;
+    }
+    setServerBusy("headshot");
+    setError(null);
+    try {
+      const v = await api.uploadHeadshot(video.id, f, f.name || "headshot.jpg", consent);
+      setVideo(v);
+      await refreshVideo();
+      setSavedNote("Headshot stored privately — now build your intro card.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Headshot upload failed.");
+    } finally {
+      setServerBusy(null);
+    }
+  };
+
+  const doIntroCard = async () => {
+    if (!video) return;
+    setServerBusy("intro");
+    setError(null);
+    try {
+      const job = await api.buildIntroCard(video.id, {
+        name: introName,
+        role: introRole,
+        seconds: introSeconds,
+      });
+      const result = await runJob(job.job_id);
+      await refreshVideo();
+      if (result && typeof result.media_id === "string" && result.report) {
+        setReport({ mediaId: result.media_id as string, report: result.report as VideoQualityReport });
+      }
+      setSavedNote("Intro card video and thumbnail ready in your files below.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Intro card failed.");
+    } finally {
+      setServerBusy(null);
+    }
+  };
+
   const doExportAudio = async (mediaId: string) => {
     if (!video) return;
     setServerBusy("audio");
@@ -411,6 +485,7 @@ export default function VideoStudioPage() {
   const media: VideoMedia[] = video?.media ?? [];
   const videoMedia = media.filter((m) => m.kind === "original" || m.kind === "enhanced");
   const hasCaptions = media.some((m) => m.kind === "captions");
+  const hasHeadshot = media.some((m) => m.kind === "headshot");
   const effectiveSource =
     enhanceSource && videoMedia.some((m) => m.id === enhanceSource)
       ? enhanceSource
@@ -590,6 +665,9 @@ export default function VideoStudioPage() {
                       {(m.kind === "original" || m.kind === "enhanced") && (
                         <video src={api.videoMediaUrl(video!.id, m.id)} controls style={{ width: "100%", maxWidth: 420, borderRadius: 8, background: "#101216", marginBottom: 8 }} />
                       )}
+                      {(m.kind === "headshot" || m.kind === "thumbnail") && (
+                        <img src={api.videoMediaUrl(video!.id, m.id)} alt={m.filename} style={{ width: 200, maxHeight: 150, objectFit: "cover", borderRadius: 8, marginBottom: 8 }} />
+                      )}
                       <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
                         <span
                           style={{
@@ -613,6 +691,18 @@ export default function VideoStudioPage() {
                           <>
                             <button className="btn secondary" onClick={() => doAnalyze(m.id)} disabled={serverBusy !== null}>
                               {serverBusy === "analyze" ? "Checking…" : "Quality check"}
+                            </button>
+                            <button
+                              className="btn secondary"
+                              onClick={() => {
+                                const d = m.duration ?? 0;
+                                setTrimStart(0);
+                                setTrimEnd(Math.max(0, Math.round(d)));
+                                setTrimFor(trimFor === m.id ? null : m.id);
+                              }}
+                              disabled={serverBusy !== null}
+                            >
+                              Trim
                             </button>
                             {m.kind === "original" && (
                               <button className="btn secondary" onClick={() => doExportMp4(m.id)} disabled={serverBusy !== null}>
@@ -642,6 +732,22 @@ export default function VideoStudioPage() {
                         <pre style={{ background: "#14161a", color: "#d7dae0", borderRadius: 8, padding: 12, fontSize: 12, lineHeight: 1.5, maxHeight: 220, overflow: "auto", margin: "8px 0 0", whiteSpace: "pre-wrap" }}>
                           {capPreview[m.id]}
                         </pre>
+                      )}
+                      {trimFor === m.id && (
+                        <div className="row" style={{ marginTop: 8, flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                          <label style={{ fontSize: 13 }}>
+                            From (s){" "}
+                            <input type="number" min={0} step={0.5} value={trimStart} onChange={(e) => setTrimStart(Number(e.target.value))} style={{ width: 70, border: "1px solid var(--line)", borderRadius: 6, padding: "5px 8px" }} />
+                          </label>
+                          <label style={{ fontSize: 13 }}>
+                            To (s){m.duration ? ` of ${Math.round(m.duration)}` : ""}{" "}
+                            <input type="number" min={0} step={0.5} value={trimEnd} onChange={(e) => setTrimEnd(Number(e.target.value))} style={{ width: 70, border: "1px solid var(--line)", borderRadius: 6, padding: "5px 8px" }} />
+                          </label>
+                          <button className="btn" onClick={() => doTrim(m.id)} disabled={serverBusy !== null || trimEnd <= trimStart}>
+                            {serverBusy === "trim" ? "Trimming…" : "Trim → MP4"}
+                          </button>
+                          <span className="muted" style={{ fontSize: 12.5 }}>Cuts out everything before/after — the original stays untouched.</span>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -737,6 +843,46 @@ export default function VideoStudioPage() {
                   <span className="muted" style={{ fontSize: 12.5 }}>
                     Timed proportionally across the video from your text — review the cues before
                     exporting. Not speech recognition.
+                  </span>
+                </div>
+
+                <h4 style={{ margin: "18px 0 8px", fontSize: 14 }}>Headshot & intro card</h4>
+                <p className="muted" style={{ marginTop: 0 }}>
+                  Add your face before the answer starts: a 2–10 second intro card with your
+                  name, role and headshot, plus a thumbnail image for the application portal.
+                  Uses your approved photo and your real video — nothing synthetic.
+                </p>
+                <div className="grid2">
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label>Headshot (JPG/PNG, your photo)</label>
+                    <input type="file" accept="image/jpeg,image/png,image/webp" onChange={doHeadshot} disabled={serverBusy !== null || !consent} />
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label>Intro length</label>
+                    <select value={introSeconds} onChange={(e) => setIntroSeconds(Number(e.target.value))}>
+                      {[2, 3, 5, 8].map((s) => (
+                        <option key={s} value={s}>{s} seconds</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid2" style={{ marginTop: 10 }}>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label>Name (blank = your profile name)</label>
+                    <input value={introName} onChange={(e) => setIntroName(e.target.value)} placeholder="e.g. Thando Ndlovu" />
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label>Role (blank = your latest CV role)</label>
+                    <input value={introRole} onChange={(e) => setIntroRole(e.target.value)} placeholder="e.g. Support Team Lead" />
+                  </div>
+                </div>
+                <div className="row" style={{ marginTop: 12, flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                  <button className="btn" onClick={doIntroCard} disabled={serverBusy !== null || !videoMedia.length || !hasHeadshot}>
+                    {serverBusy === "intro" ? `Building… ${jobNote ?? ""}` : "Build intro card + thumbnail"}
+                  </button>
+                  <span className="muted" style={{ fontSize: 12.5 }}>
+                    Prepends the card to your latest video file (the original is kept) and makes a
+                    1280×720 thumbnail PNG. Takes a minute.
                   </span>
                 </div>
               </>

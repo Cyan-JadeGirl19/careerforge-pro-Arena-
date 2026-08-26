@@ -3,7 +3,7 @@
   "info": {
     "title": "CareerForge Pro API",
     "description": "CV-first career acceleration for South African remote work. Human-supervised: sensitive actions require explicit consent.",
-    "version": "0.3.0"
+    "version": "0.3.1"
   },
   "paths": {
     "/api/v1/health": {
@@ -2071,6 +2071,174 @@
         ],
         "responses": {
           "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoJobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/videos/{video_id}/media/{media_id}/trim": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Trim Video Media",
+        "description": "Cut [start, end] out of a take -> new MP4 (background job).",
+        "operationId": "trim_video_media_api_v1_videos__video_id__media__media_id__trim_post",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          },
+          {
+            "name": "media_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Media Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrimRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoJobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/videos/{video_id}/media-headshot": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Upload Headshot",
+        "description": "Store an approved headshot for the intro card / thumbnail.",
+        "operationId": "upload_headshot_api_v1_videos__video_id__media_headshot_post",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_headshot_api_v1_videos__video_id__media_headshot_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/videos/{video_id}/intro-card": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Build Intro Card",
+        "description": "Prepend a 2-10s intro card (name, role, approved headshot) to the\nlatest video, and make a 1280x720 thumbnail PNG. Background job.",
+        "operationId": "build_intro_card_api_v1_videos__video_id__intro_card_post",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntroCardRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -4926,6 +5094,25 @@
         ],
         "title": "Body_upload_cv_api_v1_profiles__profile_id__cvs_upload_post"
       },
+      "Body_upload_headshot_api_v1_videos__video_id__media_headshot_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "likeness_consent": {
+            "type": "boolean",
+            "title": "Likeness Consent",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_headshot_api_v1_videos__video_id__media_headshot_post"
+      },
       "Body_upload_reference_document_api_v1_references__ref_id__documents_post": {
         "properties": {
           "file": {
@@ -5816,6 +6003,43 @@
           "note"
         ],
         "title": "InterviewSessionOut"
+      },
+      "IntroCardRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "seconds": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 2.0,
+            "title": "Seconds",
+            "default": 3
+          }
+        },
+        "type": "object",
+        "title": "IntroCardRequest"
       },
       "JobDescriptionCreate": {
         "properties": {
@@ -7809,6 +8033,26 @@
           "created_at"
         ],
         "title": "TailoredCvOut"
+      },
+      "TrimRequest": {
+        "properties": {
+          "start": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Start"
+          },
+          "end": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "TrimRequest"
       },
       "ValidationError": {
         "properties": {

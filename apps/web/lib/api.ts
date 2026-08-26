@@ -314,6 +314,46 @@ export const api = {
   deleteVideoMedia: (videoId: string, mediaId: string) =>
     request<void>(`/videos/${videoId}/media/${mediaId}`, { method: "DELETE" }),
   getVideoJob: (jobId: string) => request<VideoJob>(`/jobs/video/${jobId}`),
+  trimVideoMedia: (videoId: string, mediaId: string, body: { start: number; end: number }) =>
+    request<VideoJob>(`/videos/${videoId}/media/${mediaId}/trim`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  uploadHeadshot: async (
+    videoId: string,
+    file: File | Blob,
+    filename: string,
+    likenessConsent: boolean,
+  ): Promise<VideoResponse> => {
+    const form = new FormData();
+    form.append("file", file, filename);
+    form.append("likeness_consent", likenessConsent ? "true" : "false");
+    const res = await fetch(`${BASE}/videos/${videoId}/media-headshot`, {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) {
+      let code = "UPLOAD_FAILED";
+      let message = `Upload failed (${res.status})`;
+      try {
+        const b = await res.json();
+        if (b?.detail?.code) code = b.detail.code;
+        if (b?.detail?.message) message = b.detail.message;
+      } catch {
+        // non-JSON body
+      }
+      throw new ApiError(res.status, code, message);
+    }
+    return res.json();
+  },
+  buildIntroCard: (
+    videoId: string,
+    body: { name?: string; role?: string; seconds?: number },
+  ) =>
+    request<VideoJob>(`/videos/${videoId}/intro-card`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   // autonomous pipeline
   autoPipeline: (profileId: string, cvId: string, jdIds: string[]) =>

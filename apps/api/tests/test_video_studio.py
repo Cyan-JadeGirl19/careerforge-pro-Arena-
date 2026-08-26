@@ -213,6 +213,108 @@ def test_full_pipeline(client, app_video, test_clip):
     assert res.status_code == 404
 
 
+def _wait_trim_setup(client, video_id: str, test_clip: bytes) -> str:
+    res = _upload(client, video_id, test_clip)
+    assert res.status_code == 201, res.text
+    return res.json()["media"][0]["id"]
+
+
+def test_trim(client, app_video, test_clip):
+    _, video_id, _ = app_video
+    mid = _wait_trim_setup(client, video_id, test_clip)
+    res = client.post(f"{API}/videos/{video_id}/media/{mid}/trim", json={"start": 1.0, "end": 4.0})
+    assert res.status_code == 202, res.text
+    st = _wait_job(client, res.json()["job_id"])
+    assert st["status"] == "done", st
+    dl = client.get(f"{API}/videos/{video_id}/media/{st['result']['media_id']}/download")
+    assert dl.status_code == 200
+    assert dl.content[4:8] == b"ftyp"
+    probe = ffmpegx.probe_media(dl.content)
+    assert 2.7 <= (probe.duration or 0) <= 3.4  # ~3s clip from a 6s source
+
+
+def test_trim_validation(client, app_video, test_clip):
+    _, video_id, _ = app_video
+    mid = _wait_trim_setup(client, video_id, test_clip)
+    res = client.post(f"{API}/videos/{video_id}/media/{mid}/trim", json={"start": 0, "end": 99})
+    assert res.status_code == 422
+    assert res.json()["detail"]["code"] == "BAD_TRIM_RANGE"
+    res = client.post(f"{API}/videos/{video_id}/media/{mid}/trim", json={"start": 1, "end": 1.5})
+    assert res.status_code == 422
+
+
+def test_headshot_and_intro_card(client, app_video, test_clip):
+    _, video_id, _ = app_video
+    mid = _wait_trim_setup(client, video_id, test_clip)
+
+    # headshot: generated PNG (no PIL needed)
+    d = client  # placeholder to keep style
+    import io as _io
+
+    from app import ffmpegx as fx
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        from pathlib import Path
+
+        hs = Path(td) / "head.png"
+        fx.run_ffmpeg(
+            ["-hide_banner", "-y", "-f", "lavfi", "-i", "color=c=0x3366aa:s=600x800",
+             "-frames:v", "1", str(hs)]
+        )
+        data = hs.read_bytes()
+
+    res = client.post(
+        f"{API}/videos/{video_id}/media-headshot",
+        files={"file": ("head.png", _io.BytesIO(data), "image/png")},
+        data={"likeness_consent": "true"},
+    )
+    assert res.status_code == 201, res.text
+    headshot = [m for m in res.json()["media"] if m["kind"] == "headshot"]
+    assert len(headshot) == 1
+
+    # headshot without likeness consent -> 422
+    with tempfile.TemporaryDirectory() as td:
+        hs2 = Path(td) / "head2.png"
+        fx.run_ffmpeg(
+            ["-hide_banner", "-y", "-f", "lavfi", "-i", "color=c=0xaa3366:s=600x800",
+             "-frames:v", "1", str(hs2)]
+        )
+        data2 = hs2.read_bytes()
+    res = client.post(
+        f"{API}/videos/{video_id}/media-headshot",
+        files={"file": ("head2.png", _io.BytesIO(data2), "image/png")},
+        data={"likeness_consent": "false"},
+    )
+    assert res.status_code == 422
+    assert res.json()["detail"]["code"] == "LIKENESS_CONSENT_REQUIRED"
+
+    # intro card: name/role default from profile + CV (Thando / Support Team Lead)
+    res = client.post(f"{API}/videos/{video_id}/intro-card", json={"seconds": 3})
+    assert res.status_code == 202, res.text
+    st = _wait_job(client, res.json()["job_id"], timeout_s=300)
+    assert st["status"] == "done", st
+    assert st["result"]["media_id"] and st["result"]["thumbnail_id"]
+
+    dl = client.get(f"{API}/videos/{video_id}/media/{st['result']['media_id']}/download")
+    assert dl.status_code == 200
+    assert dl.content[4:8] == b"ftyp"
+    probe = ffmpegx.probe_media(dl.content)
+    assert 8.4 <= (probe.duration or 0) <= 9.6  # 3s intro + 6s clip
+
+    dl = client.get(f"{API}/videos/{video_id}/media/{st['result']['thumbnail_id']}/download")
+    assert dl.status_code == 200
+    assert dl.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_intro_card_requires_headshot(client, app_video, test_clip):
+    _, video_id, _ = app_video
+    _wait_trim_setup(client, video_id, test_clip)
+    res = client.post(f"{API}/videos/{video_id}/intro-card", json={})
+    assert res.status_code == 409
+    assert res.json()["detail"]["code"] == "NO_HEADSHOT"
+
+
 def test_unknown_media_404(client, app_video):
     _, video_id, _ = app_video
     res = client.post(f"{API}/videos/{video_id}/media/does-not-exist/analyze")

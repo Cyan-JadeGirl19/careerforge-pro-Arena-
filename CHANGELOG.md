@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.12.0 - 2026-08-26
+
+Video Studio: trimming, headshot intro card, thumbnail:
+
+- **Trim** — cut any [start, end] range out of a take → new MP4
+  (background job, validated against the measured duration, originals
+  untouched)
+- **Approved headshot** — upload (JPG/PNG/WebP, ≤5 MB) stored privately
+  against the video response, gated by the same likeness confirmation
+- **Intro card** — 2–10s 1280×720 card (name, role, headshot) prepended
+  to the latest video → MP4. Name/role default from the profile +
+  latest CV role. Rendered with Pillow (fonts committed to the repo, so
+  it works on hosts without system fonts — the bundled ffmpeg has no
+  drawtext)
+- **Thumbnail** — 1280×720 PNG frame for application portals, made
+  automatically with the intro card
+- API: `media/{mid}/trim`, `media-headshot`, `intro-card` (all jobs
+  where heavy); 4 new tests (133 total), web typecheck+build green,
+  OpenAPI contract re-exported
+
 ## 0.11.1 - 2026-08-25
 
 - README endpoint list updated with the Video Studio media + Gmail
