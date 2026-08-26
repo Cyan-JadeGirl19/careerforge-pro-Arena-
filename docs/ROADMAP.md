@@ -57,8 +57,10 @@ request recorded responses), not a later-phase add-on. Video responses up to
 - [x] Consent-based media workflow — purpose-scoped `media_use` consent +
   per-upload likeness confirmation (face/voice are yours or you have
   permission), recorded on the video response
-- [ ] Approved headshot as thumbnail/intro card/profile panel
-- [ ] Trimming in the studio (re-encode-based, next iteration)
+- [x] Approved headshot as thumbnail/intro card — **shipped 0.12.0**
+  (2–10s intro card video + 1280×720 thumbnail PNG; name/role from
+  profile + latest CV)
+- [x] Trimming in the studio — **shipped 0.12.0** (start/end cut → new MP4)
 - [ ] Background replacement (needs on-device segmentation model)
 - [ ] Real speech-to-text caption alignment (currently: proportional
   timing from provided text, clearly labelled)
