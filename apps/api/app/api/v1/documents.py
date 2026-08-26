@@ -102,7 +102,7 @@ def _build_version(
         title = "Modern Professional"
     elif kind == builders.KIND_ROLE:
         content = builders.build_master_role(parsed, role_focus)
-        title = f"Role Specialist — {role_focus}"
+        title = f"Master CV — {role_focus}"
     else:
         content = builders.build_custom(parsed, role_focus, emphasize, exclude)
         title = f"Custom — {role_focus}"
@@ -144,16 +144,46 @@ def create_version(
 def build_masters(
     cv_id: str, payload: BuildMastersRequest, db: Session = Depends(get_db)
 ) -> list[CvVersionOut]:
-    """One action builds all three master versions (autonomous flow)."""
+    """One action builds a master CV per best-fit role (up to three).
+
+    The roles come from the candidate's own profile (skill overlap with
+    role keyword sets, see app/roles.py) - not from formatting styles.
+    Every master is single-column and parser-safe; `role_focus` pins the
+    first master to a chosen role.
+    """
     cv = get_cv_or_404(db, cv_id)
     require_consent(db, cv.profile_id, "profile_processing")
-    role_focus = payload.role_focus or _guess_role_focus(cv, db)
-    versions = [
-        _build_version(db, cv, builders.KIND_ATS, None, [], []),
-        _build_version(db, cv, builders.KIND_MODERN, None, [], []),
-        _build_version(db, cv, builders.KIND_ROLE, role_focus, [], []),
-    ]
+    versions = build_all_masters(db, cv, pin_role=payload.role_focus)
     return [_version_out(v) for v in versions]
+
+
+def build_all_masters(
+    db: Session, cv: CvRecord, pin_role: str | None = None
+) -> list[CvVersion]:
+    """Build one role-focused master per top role from the CV's own data.
+
+    Shared by the build-masters route and the autonomous application
+    flow (studio), so both always build the same role-based set.
+    """
+    parsed_dict = _parsed_or_compute(cv, db)
+    from ...parsing import ParsedCv
+
+    parsed = ParsedCv(**{
+        k: parsed_dict[k]
+        for k in (
+            "name", "email", "phone", "location", "links", "summary",
+            "experience", "education", "skills", "certifications",
+            "projects", "languages",
+        )
+    })
+    roles = builders.top_roles_for_cv(parsed)
+    if pin_role:
+        roles = [pin_role] + [r for r in roles if r.lower() != pin_role.lower()]
+        roles = roles[:3]
+    out = []
+    for role in roles:
+        out.append(_build_version(db, cv, builders.KIND_ROLE, role, [], []))
+    return out
 
 
 def _guess_role_focus(cv: CvRecord, db: Session) -> str:

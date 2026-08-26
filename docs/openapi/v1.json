@@ -3,7 +3,7 @@
   "info": {
     "title": "CareerForge Pro API",
     "description": "CV-first career acceleration for South African remote work. Human-supervised: sensitive actions require explicit consent.",
-    "version": "0.3.3"
+    "version": "0.3.4"
   },
   "paths": {
     "/api/v1/health": {
@@ -703,7 +703,7 @@
           "documents"
         ],
         "summary": "Build Masters",
-        "description": "One action builds all three master versions (autonomous flow).",
+        "description": "One action builds a master CV per best-fit role (up to three).\n\nThe roles come from the candidate's own profile (skill overlap with\nrole keyword sets, see app/roles.py) - not from formatting styles.\nEvery master is single-column and parser-safe; `role_focus` pins the\nfirst master to a chosen role.",
         "operationId": "build_masters_api_v1_cvs__cv_id__versions_build_masters_post",
         "parameters": [
           {

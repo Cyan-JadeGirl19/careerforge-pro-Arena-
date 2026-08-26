@@ -132,15 +132,12 @@ def _select_best_version(db: Session, profile: Profile, jd: JobDescription) -> C
                 status_code=409,
                 detail={"code": "NO_CV", "message": "Upload a CV first - versions are built from it."},
             )
-        from .documents import _build_version
+        from .documents import build_all_masters
 
         base_cv = cvs[-1]
-        for kind, focus in (
-            (builders.KIND_ATS, None),
-            (builders.KIND_MODERN, None),
-            (builders.KIND_ROLE, jd.title),
-        ):
-            _build_version(db, base_cv, kind, focus, [], [])
+        # Role-based masters, pinned to this job's title so the best-fit
+        # master for it is built first.
+        build_all_masters(db, base_cv, pin_role=jd.title)
         versions = db.scalars(
             select(CvVersion).where(CvVersion.profile_id == profile.id)
         ).all()

@@ -127,20 +127,37 @@ def test_parsed_endpoint_for_pasted_cv(client, cv_id):
 # --- master + custom versions --------------------------------------------------
 
 
-def test_build_masters_creates_three_distinct_versions(client, cv_id):
+def test_build_masters_creates_one_per_top_role(client, cv_id):
     res = client.post(f"{API}/cvs/{cv_id}/versions/build-masters", json={})
     assert res.status_code == 201
     versions = res.json()
     assert len(versions) == 3
-    kinds = {v["kind"] for v in versions}
-    assert kinds == {"master_ats", "master_modern", "master_role"}
-    layouts = {v["content"]["layout"] for v in versions}
-    assert layouts == {"ats_single_column", "modern", "role_specialist"}
+    # every master is role-focused (no style-only masters)
+    assert {v["kind"] for v in versions} == {"master_role"}
+    roles = [v["content"]["role_focus"] for v in versions]
+    assert len({r.lower() for r in roles}) == 3, "three distinct roles"
+    assert all(r for r in roles), "every master has a role focus"
+    # all parser-safe single-column layouts
+    assert {v["content"]["layout"] for v in versions} == {"role_specialist"}
+    # titles carry the role
     for v in versions:
-        # factual integrity: name/email carried from source, nothing invented
+        assert v["title"].startswith("Master CV —")
+    # factual integrity: name/email carried from source, nothing invented
+    for v in versions:
         assert v["content"]["name"] == "Thando Ndlovu"
         assert v["content"]["source_profile_version"] == cv_id
         assert v["content"]["generation_timestamp"]
+
+
+def test_build_masters_pins_requested_role_first(client, cv_id):
+    res = client.post(
+        f"{API}/cvs/{cv_id}/versions/build-masters",
+        json={"role_focus": "marketing"},
+    )
+    assert res.status_code == 201
+    versions = res.json()
+    assert versions[0]["content"]["role_focus"] == "marketing"
+    assert len(versions) == 3
 
 
 def test_role_master_reorders_toward_role(client, cv_id):

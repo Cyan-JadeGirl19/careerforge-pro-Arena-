@@ -88,8 +88,8 @@ Current v1 endpoints:
 - `POST /api/v1/profiles/{id}/cvs` (paste), `POST /api/v1/profiles/{id}/cvs/upload` (PDF/DOCX/TXT)
 - `GET /api/v1/cvs/{id}`, `GET /api/v1/cvs/{id}/parsed`
 - `POST /api/v1/cvs/{id}/analyze`, `GET /api/v1/cvs/{id}/analysis/latest`
-- `POST /api/v1/cvs/{id}/versions` (master_ats | master_modern | master_role | custom)
-- `POST /api/v1/cvs/{id}/versions/build-masters` (all three in one action)
+- `POST /api/v1/cvs/{id}/versions` (master_role | custom; legacy master_ats / master_modern still exportable)
+- `POST /api/v1/cvs/{id}/versions/build-masters` → one master per top role found in the candidate's own CV (up to 3, all parser-safe)
 - `GET /api/v1/cvs/{id}/versions`, `GET /api/v1/cvs/{id}/export`
 - `POST /api/v1/profiles/{id}/job-descriptions`
 - `POST /api/v1/cv-versions/{id}/tailor` → job-specific CV + coverage report

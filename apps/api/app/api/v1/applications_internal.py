@@ -84,15 +84,10 @@ def ensure_versions(db: Session, profile: Profile, role_hint: str | None) -> lis
                 "message": "Upload a CV first - versions are built from it.",
             },
         )
-    from .documents import _build_version
+    from .documents import build_all_masters
 
     base = cvs[-1]
-    for kind, focus in (
-        (builders.KIND_ATS, None),
-        (builders.KIND_MODERN, None),
-        (builders.KIND_ROLE, role_hint),
-    ):
-        _build_version(db, base, kind, focus, [], [])
+    build_all_masters(db, base, pin_role=role_hint)
     return list(
         db.scalars(select(CvVersion).where(CvVersion.profile_id == profile.id)).all()
     )

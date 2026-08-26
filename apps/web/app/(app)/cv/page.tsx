@@ -12,9 +12,9 @@ import type {
 } from "../../../../../packages/contracts/types";
 
 const KIND_LABEL: Record<string, string> = {
-  master_ats: "ATS Enterprise",
-  master_modern: "Modern Professional",
-  master_role: "Role Specialist",
+  master_ats: "ATS Enterprise (legacy)",
+  master_modern: "Modern Professional (legacy)",
+  master_role: "Master",
   custom: "Custom",
 };
 
@@ -327,12 +327,14 @@ export default function CvStudioPage() {
             <div className="row" style={{ justifyContent: "space-between" }}>
               <h3 style={{ margin: 0 }}>4 · Your CV versions</h3>
               <button className="btn" onClick={buildMasters} disabled={!!busy}>
-                {busy === "masters" ? "Building…" : "Build the 3 masters"}
+                {busy === "masters" ? "Building…" : "Build masters for my top roles"}
               </button>
             </div>
             <p className="muted" style={{ margin: "6px 0 12px" }}>
-              ATS Enterprise (parser-safe), Modern Professional, and Role Specialist — plus
-              unlimited custom versions below.
+              The program finds up to three roles your skills already match (from your own CV)
+              and builds one master per role — each single-column and parser-safe, reordered so
+              that role's skills come first. Nothing is invented. Plus unlimited custom versions
+              below.
             </p>
             <div className="stack">
               {versions.map((v) => (

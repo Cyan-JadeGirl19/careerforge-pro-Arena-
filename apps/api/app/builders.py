@@ -238,6 +238,30 @@ def build_master_role(parsed: ParsedCv, role_focus: str) -> CvContent:
     return content
 
 
+def top_roles_for_cv(parsed: ParsedCv, top_n: int = 3) -> list[str]:
+    """The best-fit roles from the candidate's OWN profile.
+
+    Primary signal: skill overlap with the role keyword sets (transparent,
+    from app/roles.py). Fallbacks so a thinner profile still gets masters:
+    the candidate's latest real title, then a generic remote role.
+    """
+    from .roles import recommend_roles
+
+    roles = [r["role"] for r in recommend_roles(parsed, top_n=top_n)]
+    latest = _latest_role(parsed)
+    if latest and latest.lower() not in {r.lower() for r in roles}:
+        roles.append(latest)
+    if not roles:
+        roles = ["Remote Professional"]
+    seen: set[str] = set()
+    out: list[str] = []
+    for r in roles:
+        if r.lower() not in seen:
+            seen.add(r.lower())
+            out.append(r)
+    return out[:top_n]
+
+
 def build_custom(
     parsed: ParsedCv,
     role_focus: str,

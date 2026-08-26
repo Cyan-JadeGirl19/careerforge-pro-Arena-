@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.15.0 - 2026-08-26
+
+CV builders are now **role-based, not style-based** (user correction:
+"ATS Enterprise and Modern Professional are not job roles"):
+
+- `build-masters` now finds up to **three roles the candidate's own CV
+  already matches** (skill overlap with the role keyword sets - the
+  same transparent recommender behind "recommend roles") and builds one
+  master per role, e.g. *Master CV — Customer Support*,
+  *Master CV — Project Management*, *Master CV — Operations*.
+- Every master is single-column and parser-safe; each is reordered so
+  that role's skills and matching bullets come first. Fallbacks for
+  thinner profiles: the candidate's latest real title, then a generic
+  remote role. `role_focus` still pins the first master to a chosen
+  role.
+- The autonomous application flow (create application / auto-pipeline)
+  builds the same role-based set, pinned to the job title.
+- Old ATS Enterprise / Modern Professional versions stay exported as-is
+  (legacy label in the UI).
+- 150 API tests passing (2 new: one-per-top-role + pin-role-first),
+  contract unchanged, web build green
+
 ## 0.14.0 - 2026-08-26
 
 Job Finder: **English-speaking jobs only** (user requirement):

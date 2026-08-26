@@ -18,7 +18,9 @@ request recorded responses), not a later-phase add-on. Video responses up to
 - Candidate profile and consent
 - PDF/DOCX parsing
 - Evidence-backed CV analysis
-- Three master CVs and unlimited custom versions
+- [x] Three role-based master CVs (one per top-matching role from the
+  candidate's own CV - not formatting styles) and unlimited custom
+  versions
 - Job-specific tailoring
 - DOCX/PDF/plain-text export
 - Cover letters
