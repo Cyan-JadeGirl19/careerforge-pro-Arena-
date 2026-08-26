@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useSession } from "../../../lib/session";
-import type { ConsentItem, ConsentOut, ProfileOut } from "../../../../../packages/contracts/types";
+import type { ConsentItem, ConsentOut, GmailStatus, ProfileOut } from "../../../../../packages/contracts/types";
 
 const CONSENT_INFO: Record<ConsentItem, string> = {
   profile_processing: "Store and analyse your CV to build your CV versions.",
@@ -21,6 +21,8 @@ export default function SettingsPage() {
   const [consents, setConsents] = useState<ConsentOut[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState("");
+  const [gmail, setGmail] = useState<GmailStatus | null>(null);
+  const [gmailBusy, setGmailBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!session) return;
@@ -32,9 +34,19 @@ export default function SettingsPage() {
     }
   }, [session]);
 
+  const loadGmail = useCallback(async () => {
+    if (!session) return;
+    try {
+      setGmail(await api.gmailStatus(session.profileId));
+    } catch {
+      setGmail(null);
+    }
+  }, [session]);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadGmail();
+  }, [load, loadGmail]);
 
   if (!session) return null;
 
@@ -66,6 +78,49 @@ export default function SettingsPage() {
     a.download = "careerforge-my-data.json";
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  const connectGmail = async () => {
+    if (!session) return;
+    setGmailBusy(true);
+    setError(null);
+    try {
+      const { auth_url } = await api.gmailAuthorize(session.profileId);
+      window.open(auth_url, "_blank", "width=600,height=720");
+      // The Google redirect lands on the Outreach page; poll for the
+      // connection to appear (user completes sign-in in the popup).
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const st = await api.gmailStatus(session.profileId);
+        if (st.connected) {
+          setGmail(st);
+          setError(null);
+          return;
+        }
+      }
+      setError("We couldn't detect the connection yet - check the popup, then reload this page.");
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? `${e.message}`
+          : "Could not start the Google sign-in.",
+      );
+    } finally {
+      setGmailBusy(false);
+    }
+  };
+
+  const disconnectGmail = async () => {
+    if (!session) return;
+    setGmailBusy(true);
+    try {
+      await api.gmailDisconnect(session.profileId);
+      setGmail(await api.gmailStatus(session.profileId));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Disconnect failed.");
+    } finally {
+      setGmailBusy(false);
+    }
   };
 
   const erase = async () => {
@@ -130,6 +185,31 @@ export default function SettingsPage() {
             </label>
           );
         })}
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h3>Gmail (optional)</h3>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Connect your own Google account to create outreach emails as drafts in your Gmail.
+          Least-privilege scope: the app can <b>only create drafts</b> in your own mailbox — it
+          cannot read mail, send mail, or see your contacts. You review every draft and click
+          send yourself.
+        </p>
+        {gmail?.connected ? (
+          <div className="row" style={{ alignItems: "center" }}>
+            <span style={{ fontSize: 14 }}>
+              Connected as <b>{gmail.email}</b>
+              {gmail.connected_at ? ` · since ${new Date(gmail.connected_at).toLocaleDateString()}` : ""}
+            </span>
+            <button className="btn secondary" onClick={disconnectGmail} disabled={gmailBusy}>
+              {gmailBusy ? "Working…" : "Disconnect"}
+            </button>
+          </div>
+        ) : (
+          <button className="btn" onClick={connectGmail} disabled={gmailBusy}>
+            {gmailBusy ? "Waiting for sign-in…" : "Connect Gmail"}
+          </button>
+        )}
       </div>
 
       <div className="card">

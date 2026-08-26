@@ -16,6 +16,7 @@ from .api.v1 import (
     cvs,
     documents,
     followups,
+    gmail,
     health,
     interview,
     jobs,
@@ -73,6 +74,7 @@ def create_app() -> FastAPI:
     api.include_router(cvs.router)
     api.include_router(documents.router)
     api.include_router(studio.router)
+    api.include_router(gmail.router)
     api.include_router(jobs.router)
     api.include_router(recruiters.router)
     api.include_router(references.router)

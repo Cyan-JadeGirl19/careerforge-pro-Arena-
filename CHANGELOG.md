@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.11.0 - 2026-08-25
+
+Gmail Outreach (Phase 3 module ships, drafts-only by design):
+
+- **Candidate's own Google account** via OAuth 2.0 (candidate-provided
+  free OAuth client, setup in `docs/GOOGLE_SETUP.md`). The app stores
+  no Google credentials of its own.
+- **Least-privilege scope: `gmail.modify`** — the app can create
+  drafts in the candidate's Gmail and nothing else (no read, no send,
+  no contacts). The candidate always clicks send themselves.
+- Refresh token stored Fernet-encrypted at rest (env key
+  `CF_OAUTH_SECRET_KEY` or auto-generated DB key).
+- Draft creation per recruiter contact: reuses the real-evidence
+  outreach writer; hard gates — outreach consent, not suppressed,
+  confirmed email only, Gmail connected, **20 drafts/hour** throttle.
+- Every filed draft is recorded (to/subject/body/gmail draft id) and
+  listed on the new Outreach page with "Open in Gmail".
+- UI: Settings + Outreach connect/disconnect (popup sign-in with
+  polling), Recruiter Finder "Create Gmail draft" button, Outreach
+  page no longer a stub.
+- API: `gmail/status`, `gmail/authorize`, `gmail/oauth/callback`,
+  `gmail/disconnect`, `outreach/drafts`, `recruiters/{id}/gmail-draft`.
+- 129 API tests passing (10 new: state machine, consent gate,
+  unconfigured 503, encrypted-at-rest token, suppression, no-email,
+  throttle).
+
 ## 0.10.0 - 2026-08-25
 
 Video Studio production build (the main feature lands):

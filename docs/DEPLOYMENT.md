@@ -50,6 +50,13 @@ API service (`careerforge-api`):
   path from Render services)
 - `CF_CORS_ORIGINS` = `["https://careerforge-web-w90j.onrender.com"]`
   (update here if the web URL ever changes)
+- `CF_GOOGLE_CLIENT_ID` / `CF_GOOGLE_CLIENT_SECRET` = a free Google
+  Cloud OAuth client for Gmail outreach (see `docs/GOOGLE_SETUP.md`).
+  Optional — without them the app works, Gmail endpoints return a
+  clear 503.
+- `CF_OAUTH_SECRET_KEY` = any long random string, used to encrypt the
+  stored Gmail refresh token. Optional but recommended (the app
+  auto-generates a DB-stored key when absent).
 
 Web service (`careerforge-web`):
 - `CF_API_URL` = `https://careerforge-api-h5yp.onrender.com`

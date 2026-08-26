@@ -540,6 +540,67 @@ class CvAnalysis(Base):
     cv: Mapped["CvRecord"] = relationship(back_populates="analyses")
 
 
+class AppSecret(Base):
+    """App-level generated secrets (e.g. the Fernet encryption key)."""
+
+    __tablename__ = "app_secrets"
+
+    key: Mapped[str] = mapped_column(String(60), primary_key=True)
+    value: Mapped[str] = mapped_column(Text)
+
+
+class GmailAccount(Base):
+    """A candidate's own Gmail account, connected via OAuth.
+
+    Only the ``gmail.modify`` scope is requested (create drafts in the
+    candidate's own mailbox - no read, no send, no contacts). The
+    refresh token is stored Fernet-encrypted (see app/secrets.py).
+    """
+
+    __tablename__ = "gmail_accounts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    profile_id: Mapped[str] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    email: Mapped[str] = mapped_column(String(200))
+    refresh_token: Mapped[str] = mapped_column(Text)  # Fernet-encrypted
+    scopes: Mapped[str] = mapped_column(String(300), default="")
+    connected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class OutreachDraft(Base):
+    """A generated outreach email prepared as a Gmail draft.
+
+    The app NEVER sends mail: this row records that a draft was created
+    in the candidate's own Gmail (gmail_draft_id) so it can be listed,
+    throttled (20/hour) and audited.
+    """
+
+    __tablename__ = "outreach_drafts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    profile_id: Mapped[str] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    recruiter_id: Mapped[str | None] = mapped_column(
+        ForeignKey("recruiter_contacts.id", ondelete="SET NULL"), nullable=True
+    )
+    to_email: Mapped[str] = mapped_column(String(200))
+    subject: Mapped[str] = mapped_column(String(300))
+    body: Mapped[str] = mapped_column(Text)
+    tone: Mapped[str] = mapped_column(String(20), default="direct")
+    status: Mapped[str] = mapped_column(String(20), default="sent_to_gmail")
+    # sent_to_gmail (draft exists in the candidate's Gmail)
+    gmail_draft_id: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    issues_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
 class Evidence(Base):
     """Candidate-asserted claim with provenance and approval state."""
 

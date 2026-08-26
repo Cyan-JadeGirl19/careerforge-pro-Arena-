@@ -7,20 +7,23 @@ per user request.
 """
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import urllib.request
+from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ... import gmailx, secrets
 from ...config import get_settings
 from ...consents import require_consent
 from ...db import get_db
-from ...models import CvRecord, Profile, RecruiterContact
+from ...models import CvRecord, GmailAccount, OutreachDraft, Profile, RecruiterContact
 from ...parsing import ParsedCv, parse_cv_text
 from ...recruiters import extract, outreach
 from ...schemas import (
+    GmailDraftOut,
     OutreachIn,
     OutreachOut,
     RecruiterCreate,
@@ -211,14 +214,10 @@ def delete_contact(contact_id: str, db: Session = Depends(get_db)) -> None:
 # --- outreach drafts (drafts only - nothing is ever sent) -----------------------
 
 
-@router.post("/recruiters/{contact_id}/outreach", response_model=OutreachOut)
-def outreach_draft(
-    contact_id: str, payload: OutreachIn, db: Session = Depends(get_db)
-) -> OutreachOut:
-    c = get_contact_or_404(db, contact_id)
-    profile = db.get(Profile, c.profile_id)
-    require_consent(db, c.profile_id, "outreach_sending")
-
+def _outreach_parts(
+    db: Session, c: RecruiterContact, profile: Profile, job_title: str | None, tone: str
+) -> tuple[str, list[str], str]:
+    """Build (draft_text, issues, subject) from real profile evidence."""
     parsed = _parsed_profile(db, profile)
     candidate_role = None
     evidence = None
@@ -245,8 +244,123 @@ def outreach_draft(
         contact_name=c.name,
         contact_title=c.title,
         company=c.company,
-        job_title=payload.job_title or c.job_title,
-        tone=payload.tone,
+        job_title=job_title,
+        tone=tone,
         email_status=c.email_status,
     )
+    subject = f"About the {job_title} role" if job_title else "Quick introduction"
+    return draft, issues, subject
+
+
+@router.post("/recruiters/{contact_id}/outreach", response_model=OutreachOut)
+def outreach_draft(
+    contact_id: str, payload: OutreachIn, db: Session = Depends(get_db)
+) -> OutreachOut:
+    c = get_contact_or_404(db, contact_id)
+    profile = db.get(Profile, c.profile_id)
+    require_consent(db, c.profile_id, "outreach_sending")
+    draft, issues, _ = _outreach_parts(
+        db, c, profile, payload.job_title or c.job_title, payload.tone
+    )
     return OutreachOut(draft=draft, issues=issues)
+
+
+@router.post("/recruiters/{contact_id}/gmail-draft", response_model=GmailDraftOut, status_code=201)
+def create_gmail_draft(
+    contact_id: str, payload: OutreachIn, db: Session = Depends(get_db)
+) -> GmailDraftOut:
+    """Create the outreach email as a DRAFT in the candidate's own Gmail.
+
+    Hard limits: outreach_sending consent, not suppressed, confirmed
+    email, Gmail connected, 20 drafts/hour. The app never sends mail -
+    the candidate opens the draft and clicks send themselves.
+    """
+    c = get_contact_or_404(db, contact_id)
+    profile = db.get(Profile, c.profile_id)
+    require_consent(db, c.profile_id, "outreach_sending")
+    if c.suppressed:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "SUPPRESSED",
+                "message": "This contact is on your suppression list - do not email them.",
+            },
+        )
+    if not c.email:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "NO_EMAIL",
+                "message": "No confirmed email address for this contact yet.",
+            },
+        )
+    acc = db.scalars(
+        select(GmailAccount).where(GmailAccount.profile_id == c.profile_id)
+    ).first()
+    if acc is None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "GMAIL_NOT_CONNECTED",
+                "message": "Connect your Gmail in Settings first. The app only "
+                "creates drafts - you always click send yourself.",
+            },
+        )
+    since = datetime.now(timezone.utc) - timedelta(hours=1)
+    recent = db.scalars(
+        select(OutreachDraft).where(
+            OutreachDraft.profile_id == c.profile_id,
+            OutreachDraft.created_at >= since,
+        )
+    ).all()
+    if len(recent) >= 20:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "THROTTLED",
+                "message": "You've reached the 20-drafts-per-hour limit. Give it a "
+                "little time - it keeps you out of spam filters and respectful to recruiters.",
+            },
+        )
+    draft, issues, subject = _outreach_parts(
+        db, c, profile, payload.job_title or c.job_title, payload.tone
+    )
+    try:
+        refresh = secrets.decrypt_secret(acc.refresh_token)
+        gmail_draft_id = gmailx.create_draft(refresh, c.email, subject, draft)
+    except InvalidToken:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "GMAIL_TOKEN_INVALID",
+                "message": "Could not read the stored Google token - reconnect Gmail in Settings.",
+            },
+        )
+    except gmailx.GmailApiError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "GMAIL_API_FAILED", "message": str(exc)[:300]},
+        )
+    row = OutreachDraft(
+        id=str(uuid.uuid4()),
+        profile_id=c.profile_id,
+        recruiter_id=c.id,
+        to_email=c.email,
+        subject=subject,
+        body=draft,
+        tone=payload.tone,
+        status="sent_to_gmail",
+        gmail_draft_id=gmail_draft_id,
+        issues_json=json.dumps(issues),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return GmailDraftOut(
+        draft_id=row.id,
+        to_email=c.email,
+        subject=subject,
+        gmail_draft_id=gmail_draft_id,
+        gmail_url=f"https://mail.google.com/mail/?view=compose&draftid={gmail_draft_id}",
+        created_at=row.created_at,
+    )

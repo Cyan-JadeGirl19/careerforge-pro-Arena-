@@ -2146,6 +2146,232 @@
         }
       }
     },
+    "/api/v1/profiles/{profile_id}/gmail/status": {
+      "get": {
+        "tags": [
+          "gmail"
+        ],
+        "summary": "Gmail Status",
+        "operationId": "gmail_status_api_v1_profiles__profile_id__gmail_status_get",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GmailStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profiles/{profile_id}/gmail/authorize": {
+      "post": {
+        "tags": [
+          "gmail"
+        ],
+        "summary": "Gmail Authorize",
+        "operationId": "gmail_authorize_api_v1_profiles__profile_id__gmail_authorize_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GmailAuthorizeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/gmail/oauth/callback": {
+      "get": {
+        "tags": [
+          "gmail"
+        ],
+        "summary": "Gmail Callback",
+        "operationId": "gmail_callback_api_v1_gmail_oauth_callback_get",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "State"
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Code"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Error"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profiles/{profile_id}/gmail/disconnect": {
+      "post": {
+        "tags": [
+          "gmail"
+        ],
+        "summary": "Gmail Disconnect",
+        "operationId": "gmail_disconnect_api_v1_profiles__profile_id__gmail_disconnect_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profiles/{profile_id}/outreach/drafts": {
+      "get": {
+        "tags": [
+          "gmail"
+        ],
+        "summary": "List Outreach Drafts",
+        "operationId": "list_outreach_drafts_api_v1_profiles__profile_id__outreach_drafts_get",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OutreachDraftOut"
+                  },
+                  "title": "Response List Outreach Drafts Api V1 Profiles  Profile Id  Outreach Drafts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobs": {
       "get": {
         "tags": [
@@ -2970,6 +3196,59 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OutreachOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recruiters/{contact_id}/gmail-draft": {
+      "post": {
+        "tags": [
+          "recruiters"
+        ],
+        "summary": "Create Gmail Draft",
+        "description": "Create the outreach email as a DRAFT in the candidate's own Gmail.\n\nHard limits: outreach_sending consent, not suppressed, confirmed\nemail, Gmail connected, 20 drafts/hour. The app never sends mail -\nthe candidate opens the draft and clicks send themselves.",
+        "operationId": "create_gmail_draft_api_v1_recruiters__contact_id__gmail_draft_post",
+        "parameters": [
+          {
+            "name": "contact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Contact Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutreachIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GmailDraftOut"
                 }
               }
             }
@@ -5291,6 +5570,117 @@
         ],
         "title": "FollowUpStatusIn"
       },
+      "GmailAuthorizeOut": {
+        "properties": {
+          "auth_url": {
+            "type": "string",
+            "title": "Auth Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "auth_url"
+        ],
+        "title": "GmailAuthorizeOut"
+      },
+      "GmailDraftOut": {
+        "properties": {
+          "draft_id": {
+            "type": "string",
+            "title": "Draft Id"
+          },
+          "to_email": {
+            "type": "string",
+            "title": "To Email"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "gmail_draft_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gmail Draft Id"
+          },
+          "gmail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gmail Url"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "draft_id",
+          "to_email",
+          "subject",
+          "created_at"
+        ],
+        "title": "GmailDraftOut"
+      },
+      "GmailStatusOut": {
+        "properties": {
+          "connected": {
+            "type": "boolean",
+            "title": "Connected"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "scopes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scopes"
+          },
+          "connected_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connected At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "connected"
+        ],
+        "title": "GmailStatusOut"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -5925,6 +6315,88 @@
           "present"
         ],
         "title": "KeywordStatus"
+      },
+      "OutreachDraftOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "profile_id": {
+            "type": "string",
+            "title": "Profile Id"
+          },
+          "to_email": {
+            "type": "string",
+            "title": "To Email"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "tone": {
+            "type": "string",
+            "title": "Tone"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "gmail_draft_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gmail Draft Id"
+          },
+          "gmail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gmail Url"
+          },
+          "recruiter_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recruiter Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "profile_id",
+          "to_email",
+          "subject",
+          "body",
+          "tone",
+          "status",
+          "created_at"
+        ],
+        "title": "OutreachDraftOut"
       },
       "OutreachIn": {
         "properties": {

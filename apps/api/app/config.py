@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     # Adzuna (optional) - the candidate's own free API key, best for SA listings.
     adzuna_app_id: str | None = None
     adzuna_api_key: str | None = None
+    # Gmail outreach (optional) - the candidate's own free Google Cloud
+    # OAuth client. See docs/GOOGLE_SETUP.md. Without these, Gmail
+    # endpoints return a clear 503 and the app works otherwise.
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    gmail_redirect_uri: str = (
+        "https://careerforge-api-h5yp.onrender.com/api/v1/gmail/oauth/callback"
+    )
+    web_url: str = "https://careerforge-web-w90j.onrender.com"
 
     @model_validator(mode="after")
     def _validate(self) -> "Settings":

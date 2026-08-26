@@ -34,10 +34,14 @@ request recorded responses), not a later-phase add-on. Video responses up to
 
 ## Phase 3 — Communication and references
 
-- Gmail OAuth drafts
-- Approved references and attachments
-- Follow-up reminders
-- Consent, suppression, and deletion controls
+- [x] Gmail OAuth drafts — **shipped 0.11.0**: candidate's own Google
+  account, `gmail.modify` scope only (create drafts, never send),
+  20/hour throttle, suppression + confirmed-email gates, drafts list
+  with "Open in Gmail"
+- [x] Approved references and attachments
+- [x] Follow-up reminders
+- [x] Consent, suppression, and deletion controls
+- [ ] 3-touch follow-up sequences (drafts + reminders only)
 
 ## Phase 4 — Media and coaching
 

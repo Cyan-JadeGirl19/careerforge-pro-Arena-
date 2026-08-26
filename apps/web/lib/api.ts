@@ -10,6 +10,8 @@ import type {
   ApplicationStatus,
   AutoPipelineResult,
   FollowUp,
+  GmailDraftOut,
+  GmailStatus,
   InterviewSession,
   NegotiationScript,
   Plan90d,
@@ -27,6 +29,7 @@ import type {
   Job,
   JobDescription,
   OutreachDraft,
+  OutreachDraftRow,
   ParsedCv,
   RecruiterContact,
   Reference,
@@ -397,6 +400,26 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  // gmail outreach (drafts only - the app never sends)
+  gmailStatus: (profileId: string) => request<GmailStatus>(`/profiles/${profileId}/gmail/status`),
+  gmailAuthorize: (profileId: string) =>
+    request<{ auth_url: string }>(`/profiles/${profileId}/gmail/authorize`, {
+      method: "POST",
+      body: "{}",
+    }),
+  gmailDisconnect: (profileId: string) =>
+    request<void>(`/profiles/${profileId}/gmail/disconnect`, { method: "POST" }),
+  createGmailDraft: (
+    contactId: string,
+    body: { job_title?: string; tone?: string },
+  ) =>
+    request<GmailDraftOut>(`/recruiters/${contactId}/gmail-draft`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  listOutreachDrafts: (profileId: string) =>
+    request<OutreachDraftRow[]>(`/profiles/${profileId}/outreach/drafts`),
 
   // references
   listReferences: (profileId: string, includeSuppressed = false) =>

@@ -524,6 +524,43 @@ class OutreachOut(BaseModel):
     issues: list[str]
 
 
+# ---- gmail outreach (drafts only - the app never sends) ----
+
+
+class GmailStatusOut(BaseModel):
+    connected: bool
+    email: str | None = None
+    scopes: str | None = None
+    connected_at: datetime | None = None
+
+
+class GmailAuthorizeOut(BaseModel):
+    auth_url: str
+
+
+class GmailDraftOut(BaseModel):
+    draft_id: str
+    to_email: str
+    subject: str
+    gmail_draft_id: str | None = None
+    gmail_url: str | None = None
+    created_at: datetime
+
+
+class OutreachDraftOut(BaseModel):
+    id: str
+    profile_id: str
+    to_email: str
+    subject: str
+    body: str
+    tone: str
+    status: str
+    gmail_draft_id: str | None = None
+    gmail_url: str | None = None
+    recruiter_name: str | None = None
+    created_at: datetime
+
+
 # ---- references ----
 
 class ReferenceCreate(BaseModel):

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useSession } from "../../../lib/session";
-import type { Job } from "../../../../../packages/contracts/types";
+import type { GmailDraftOut, GmailStatus, Job } from "../../../../../packages/contracts/types";
 
 interface Contact {
   id: string;
@@ -71,6 +71,8 @@ export default function RecruiterFinderPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [gmail, setGmail] = useState<GmailStatus | null>(null);
+  const [gmailDraft, setGmailDraft] = useState<GmailDraftOut | null>(null);
 
   const load = useCallback(async () => {
     if (!pid) return;
@@ -88,10 +90,30 @@ export default function RecruiterFinderPage() {
 
   useEffect(() => {
     load();
-  }, [load]);
+    if (!pid) return;
+    api.gmailStatus(pid).then(setGmail).catch(() => setGmail(null));
+  }, [load, pid]);
 
   const fail = (e: unknown, fallback: string) =>
     setError(e instanceof ApiError ? e.message : fallback);
+
+  const doGmailDraft = async () => {
+    if (!selected) return;
+    setBusy("gmail");
+    setError(null);
+    setGmailDraft(null);
+    try {
+      const r = await api.createGmailDraft(selected.id, {
+        job_title: outreachJob || selected.job_title || undefined,
+        tone: outreachTone,
+      });
+      setGmailDraft(r);
+    } catch (e) {
+      fail(e, "Could not create the Gmail draft.");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const doExtract = async () => {
     if (!pid || !urlInput.trim()) return;
@@ -342,8 +364,8 @@ export default function RecruiterFinderPage() {
             {selected.company ? ` @ ${selected.company}` : ""}
           </h3>
           <p className="muted">
-            Draft only - it is never sent. Review it, edit if you like, and send it yourself
-            (Gmail integration arrives in Phase 3 with your approval at every step).
+            Draft only - it is never sent. Review it, edit if you like, and send it yourself.
+            With Gmail connected, “Create Gmail draft” files it in your own Drafts folder.
           </p>
           <div className="row" style={{ flexWrap: "wrap" }}>
             <select
@@ -369,7 +391,23 @@ export default function RecruiterFinderPage() {
             <button className="btn" onClick={doOutreach} disabled={busy === "outreach"}>
               {busy === "outreach" ? "Drafting…" : "Draft outreach"}
             </button>
+            {gmail?.connected && selected.email && !selected.suppressed && (
+              <button className="btn secondary" onClick={doGmailDraft} disabled={busy === "gmail"}>
+                {busy === "gmail" ? "Creating…" : "Create Gmail draft"}
+              </button>
+            )}
+            {gmail?.connected && !selected.email && (
+              <span className="muted" style={{ fontSize: 12.5 }}>
+                No confirmed email on this contact yet.
+              </span>
+            )}
           </div>
+          {gmailDraft?.gmail_url && (
+            <div className="alert ok" style={{ marginTop: 10 }}>
+              Draft created in your Gmail <b>Drafts</b> — open it, review, edit and click send
+              yourself. <a href={gmailDraft.gmail_url} target="_blank" rel="noreferrer">Open in Gmail</a>
+            </div>
+          )}
           {draft && (
             <>
               <pre className="script" style={{ marginTop: 12 }}>{draft}</pre>

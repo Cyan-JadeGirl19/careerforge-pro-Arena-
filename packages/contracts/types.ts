@@ -294,6 +294,36 @@ export interface Application {
   updated_at: string;
 }
 
+export interface GmailStatus {
+  connected: boolean;
+  email: string | null;
+  scopes: string | null;
+  connected_at: string | null;
+}
+
+export interface GmailDraftOut {
+  draft_id: string;
+  to_email: string;
+  subject: string;
+  gmail_draft_id: string | null;
+  gmail_url: string | null;
+  created_at: string;
+}
+
+export interface OutreachDraftRow {
+  id: string;
+  profile_id: string;
+  to_email: string;
+  subject: string;
+  body: string;
+  tone: string;
+  status: string;
+  gmail_draft_id: string | null;
+  gmail_url: string | null;
+  recruiter_name: string | null;
+  created_at: string;
+}
+
 export interface AutoPipelineResult {
   applications: Application[];
   skipped: Array<{ jd_id: string; reason: unknown }>;
