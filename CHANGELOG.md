@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.17.0 - 2026-08-26
+
+Tailored CVs now **re-write** for the job, not just reorder (user
+request: "give the best keywords and details"):
+
+- **Summary rewrite** — gains a targeting sentence using only
+  JD keywords the candidate's own CV already supports
+  ("…applying to the Customer Success Manager role with direct
+  experience in Stakeholder Management, SaaS"). Generic words and
+  keywords inside the job title are filtered; unsupported keywords are
+  never claimed.
+- **Bullet re-labels** — matching bullets are rewritten in the job's
+  own wording via a conservative domain bridge table
+  ("Customer Success: led a remote team of 4 support agents…",
+  "Retention: built a knowledge base…"). The underlying fact is never
+  changed (numbers/claims preserved, up to 4 per CV).
+- **Experience reordering** — the role with the most JD-relevant
+  content leads the CV (chronology preserved within ties).
+- Full transparency in the report + UI: which keywords were added to
+  the summary, which bullets were re-written (and how), and whether
+  roles were reordered. Gaps are still flagged, never filled in.
+- 159 API tests passing (9 new engine + integration tests), web build
+  green, contract re-exported
+
 ## 0.16.0 - 2026-08-26
 
 Custom versions now visibly reposition for the chosen role (bug fix:

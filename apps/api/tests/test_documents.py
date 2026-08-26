@@ -1,6 +1,7 @@
 """Document engine tests: upload/parse, versions, tailoring, export."""
 import io
 import json
+import re
 
 API = "/api/v1"
 
@@ -341,6 +342,111 @@ def test_tailored_export(client, consented_profile, cv_id):
     res = client.get(f"{API}/tailored/{tailored['id']}/export", params={"format": "pdf"})
     assert res.status_code == 200
     assert res.content[:4] == b"%PDF"
+
+
+# --- tailoring rewrite engine -----------------------------------------------------
+
+from app.builders import (  # noqa: E402
+    KEYWORD_BRIDGES,
+    _relabel_bullet,
+    _role_relevance,
+    _targeted_summary,
+)
+
+
+def test_relabel_bullet_preserves_facts():
+    b, kw = _relabel_bullet(
+        "Resolved 25+ customer issues daily while meeting SLA targets",
+        ["customer support"],
+    )
+    assert kw == "customer support"
+    assert b.startswith("Customer Support: ")
+    assert "25+" in b and "SLA targets" in b  # original fact intact
+
+
+def test_relabel_bullet_skips_already_present_keyword():
+    b, kw = _relabel_bullet("Provided customer support for 40 customers", ["customer support"])
+    assert kw is None and b == "Provided customer support for 40 customers"
+
+
+def test_relabel_bullet_no_bridge_no_change():
+    b, kw = _relabel_bullet("Managed the office coffee machine", ["quantum physics"])
+    assert kw is None
+    assert b == "Managed the office coffee machine"
+
+
+def test_role_relevance_ranks_relevant_role_higher():
+    kws = ["customer support", "onboarding"]
+    a = {"title": "Support Lead", "bullets": ["handled customer support tickets and onboarding"]}
+    b = {"title": "Warehouse Clerk", "bullets": ["stacked boxes"]}
+    assert _role_relevance(a, kws) > _role_relevance(b, kws)
+
+
+def test_targeted_summary_uses_only_supported_keywords():
+    # "customer support" is in the corpus and not part of the job title,
+    # so it qualifies; "retention" is unsupported and must not be claimed.
+    s, added = _targeted_summary(
+        "Support lead.",
+        "Customer Success Manager",
+        ["retention", "customer support"],
+        "i drive customer support and csat",
+    )
+    assert [k.lower() for k in added] == ["customer support"]
+    assert "retention" not in [k.lower() for k in added], "unsupported keyword must not be claimed"
+    assert "Customer Success Manager" in s
+
+
+def test_targeted_summary_skips_keywords_inside_job_title():
+    # "customer success" is inside "Customer Success Manager" - restating
+    # it next to the title is noise, so nothing is added.
+    s, added = _targeted_summary(
+        "Support lead.",
+        "Customer Success Manager",
+        ["customer success"],
+        "i drive customer success",
+    )
+    assert added == []
+    assert s == "Support lead."
+
+
+def test_tailor_rewrites_summary_and_bullets(client, consented_profile, cv_id):
+    version = client.post(
+        f"{API}/cvs/{cv_id}/versions",
+        json={"kind": "master_role", "role_focus": "customer success"},
+    ).json()
+    jd = client.post(
+        f"{API}/profiles/{consented_profile}/job-descriptions",
+        json={
+            "title": "Customer Success Manager",
+            "company": "Acme",
+            "text": (
+                "We need a customer success manager to drive customer success, "
+                "retention and churn reduction for SaaS customers. Experience "
+                "with customer support, onboarding and stakeholder management "
+                "required. CRM experience preferred."
+            ),
+        },
+    ).json()
+    res = client.post(f"{API}/cv-versions/{version['id']}/tailor", json={"jd_id": jd["id"]})
+    assert res.status_code == 201, res.text
+    content = res.json()["content"]
+    report = res.json()["report"]
+
+    # summary targets the role and only gains supported keywords
+    assert "Customer Success Manager" in content["summary"]
+    assert report["summary_keywords_added"]
+    for kw in report["summary_keywords_added"]:
+        assert kw.lower() in content["summary"].lower()
+
+    # bullets re-labelled in the job's wording; facts (numbers) preserved
+    assert report["bullets_relabelled"], "expected at least one re-labelled bullet"
+    for r in report["bullets_relabelled"]:
+        assert r["bullet"] != r["original"]
+        assert re.findall(r"\d+", r["original"]) == re.findall(r"\d+", r["bullet"])
+        assert r["keyword"].lower() in r["bullet"].lower()
+
+    # role reordering flag present (bool)
+    assert isinstance(report["roles_reordered"], bool)
 
 
 # --- erasure ---------------------------------------------------------------------

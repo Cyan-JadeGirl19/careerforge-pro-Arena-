@@ -186,6 +186,9 @@ export interface TailoredReport {
   surfaced_keywords: string[];
   gaps: string[];
   needs_confirmation: string[];
+  summary_keywords_added?: string[];
+  bullets_relabelled?: Array<{ bullet: string; keyword: string; original: string }>;
+  roles_reordered?: boolean;
   coverage: number;
   note: string;
 }

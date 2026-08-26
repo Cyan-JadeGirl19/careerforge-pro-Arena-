@@ -470,6 +470,26 @@ export default function CvStudioPage() {
                       </ul>
                     </>
                   )}
+                  {tailored.report.summary_keywords_added && tailored.report.summary_keywords_added.length > 0 && (
+                    <p style={{ marginTop: 8, fontSize: 13 }}>
+                      <b>Summary now targets the role</b> with your own proven keywords:{" "}
+                      {tailored.report.summary_keywords_added.join(", ")}
+                    </p>
+                  )}
+                  {tailored.report.bullets_relabelled && tailored.report.bullets_relabelled.length > 0 && (
+                    <p style={{ fontSize: 13 }}>
+                      <b>
+                        {tailored.report.bullets_relabelled.length} bullet
+                        {tailored.report.bullets_relabelled.length > 1 ? "s" : ""} re-written in the job's wording
+                      </b>{" "}
+                      <span className="muted">(your facts unchanged — every keyword is in your CV)</span>
+                    </p>
+                  )}
+                  {tailored.report.roles_reordered && (
+                    <p style={{ fontSize: 13 }}>
+                      Your most relevant role now <b>leads the CV</b>.
+                    </p>
+                  )}
                   <div className="actions">
                     <a className="btn" href={exportUrl("tailored", tailored.id, "docx")}>
                       Download tailored DOCX

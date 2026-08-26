@@ -408,6 +408,130 @@ def extract_jd_keywords(jd_text: str, top_n: int = 24) -> list[str]:
     return [w for w, _ in ranked[:top_n]]
 
 
+# --- tailoring rewrite engine ---------------------------------------------
+#
+# Curated, domain-conservative bridges: for a JD keyword, the surface
+# forms that count as evidence a bullet already demonstrates it. Used
+# ONLY to re-label a bullet in the job's own wording ("Customer support:
+# resolved 25+ issues daily…") - the underlying fact is never changed.
+# No bridge = no rewrite for that keyword.
+
+KEYWORD_BRIDGES: dict[str, tuple[str, ...]] = {
+    "customer support": ("ticket", "customer issue", "help desk", "support", "customer service", "customer inquiry"),
+    "customer service": ("customer", "client", "service level", "sla", "inquiry"),
+    "customer success": ("customer", "csat", "onboard", "retention", "renewal", "churn"),
+    "retention": ("csat", "satisfaction", "repeat", "churn", "retain"),
+    "churn": ("retention", "cancell", "satisfaction", "lost customer"),
+    "account management": ("account", "client", "customer", "portfolio", "renewal"),
+    "crm": ("salesforce", "hubspot", "zoho", "dynamics 365", "dynamics", "customer database"),
+    "stakeholder management": ("stakeholder", "cross-functional", "cross functional"),
+    "data analysis": ("excel", "sql", "data set", "dataset", "metric", "dashboard", "spreadsheet", "analytics"),
+    "reporting": ("report", "dashboard", "metric", "spreadsheet", "kpi"),
+    "process improvement": ("workflow", "efficien", "streamline", "optimis", "reduced", "faster", "improv"),
+    "onboarding": ("onboard", "new customer", "new client", "induction", "kick-off", "kickoff"),
+    "escalation": ("escalat", "complex issue", "priority issue", "urgent"),
+    "team leadership": ("led a", "lead a", "managed a team", "mentored", "trained", "supervised"),
+    "training": ("trained", "training", "mentor", "coach", "knowledge base"),
+    "negotiation": ("negotiat", "pricing", "contract", "commercial", "vendor"),
+    "sales": ("revenue", "pipeline", "prospect", "deal", "target", "quota"),
+    "marketing": ("campaign", "content", "seo", "social media", "email list", "newsletter"),
+    "content creation": ("content", "wrote", "writing", "copy", "article", "blog"),
+    "email marketing": ("email", "newsletter", "campaign"),
+    "product": ("roadmap", "backlog", "user research", "a/b", "feature"),
+    "project management": ("project", "timeline", "delivery", "milestone", "scope"),
+    "agile": ("sprint", "scrum", "agile", "jira", "backlog", "standup"),
+    "quality assurance": ("quality", "test", "qa", "compliance", "standard"),
+    "time management": ("priority", "deadline", "schedule", "concurrent", "simultaneous"),
+    "communication": ("stakeholder", "present", "documentation", "wrote", "briefing", "escalat"),
+    "documentation": ("documentation", "knowledge base", "wrote", "manual", "guide"),
+}
+
+
+def _label_for(keyword: str) -> str:
+    if keyword.isalpha() and len(keyword) <= 4:
+        return keyword.upper()
+    return keyword.title()
+
+
+def _relabel_bullet(bullet: str, keywords: list[str]) -> tuple[str, str | None]:
+    """Prepend the best JD keyword label whose evidence the bullet
+    already contains. Returns (new_bullet, keyword_or_None)."""
+    low = bullet.lower()
+    for kw in keywords:
+        if kw in low:
+            continue  # already in the job's own words
+        bridge = KEYWORD_BRIDGES.get(kw)
+        if not bridge:
+            continue
+        if any(term in low for term in bridge):
+            return f"{_label_for(kw)}: {bullet[0].lower()}{bullet[1:]}", kw
+    return bullet, None
+
+
+def _role_relevance(entry, keywords: list[str]) -> int:
+    """JD-keyword presence in one experience entry (object or dict)."""
+    if isinstance(entry, dict):
+        title, company, bullets = entry.get("title", ""), entry.get("company", ""), entry.get("bullets", [])
+    else:
+        title, company, bullets = entry.title, entry.company, entry.bullets or []
+    text = " ".join([title, company] + list(bullets)).lower()
+    return sum(1 for k in keywords if k in text)
+
+
+#: Single generic words that read badly in a CV summary even when they
+#: technically match. Multi-word phrases are unaffected.
+_GENERIC_SUMMARY_WORDS = {
+    "customer", "customers", "client", "clients", "team", "data", "work",
+    "service", "services", "tools", "management", "people", "users",
+    "product", "business", "experience", "skills", "company", "manager",
+    "support", "remote", "role", "roles",
+}
+_ACRONYMS = {
+    "saas": "SaaS", "csat": "CSAT", "sla": "SLA", "crm": "CRM", "seo": "SEO",
+    "sql": "SQL", "kpi": "KPI", "erp": "ERP", "cms": "CMS", "api": "API",
+}
+
+
+def _display_keyword(kw: str) -> str:
+    if kw.lower() in _ACRONYMS:
+        return _ACRONYMS[kw.lower()]
+    if " " in kw:
+        return kw.title()
+    return kw
+
+
+def _targeted_summary(
+    summary: str, jd_title: str, keywords: list[str], corpus: str
+) -> tuple[str, list[str]]:
+    """Append a JD-targeted sentence using ONLY keywords the candidate's
+    own corpus already supports. Prefers specific phrases over generic
+    single words. Returns (new_summary, keywords_added_display)."""
+    original = (summary or "").strip().rstrip(".")
+    picked: list[str] = []
+    for k in keywords:
+        if len(k) <= 3 or k not in corpus:
+            continue
+        if k.lower() in _GENERIC_SUMMARY_WORDS:
+            continue
+        if jd_title and k.lower() in jd_title.lower():
+            continue
+        if any(
+            k.lower() == p.lower() or k.lower() in p.lower() or p.lower() in k.lower()
+            for p in picked
+        ):
+            continue
+        picked.append(_display_keyword(k))
+        if len(picked) == 3:
+            break
+    if not picked or not original:
+        return summary, []
+    role = jd_title or "this role"
+    return (
+        original
+        + f" - applying to the {role} role with direct experience in {', '.join(picked)}."
+    ), picked
+
+
 # --- tailoring --------------------------------------------------------------
 
 
@@ -418,7 +542,13 @@ def tailor(
     jd_text: str,
     jd_id: str,
 ) -> tuple[CvContent, dict]:
-    """Create a job-specific version. Adds nothing the candidate didn't provide."""
+    """Create a job-specific version: rewrites in the job's own wording.
+
+    The rewrite engine (summary sentence, bullet re-labels, experience
+    reordering) uses only the candidate's real facts + the JD's keywords.
+    Every added keyword is verified against the candidate's own corpus;
+    missing requirements are reported as gaps, never filled in.
+    """
     out = content.clone()
     keywords = extract_jd_keywords(jd_text)
     corpus = content.all_text() + " " + parsed.summary.lower()
@@ -440,12 +570,36 @@ def tailor(
                 "If you have evidence for it, add it to your profile first."
             )
 
-    # Reorder bullets by relevance to this job (factual content only).
+    # 1) Rewrite the summary: JD-targeted sentence, supported keywords only.
+    out.summary, summary_added = _targeted_summary(
+        out.summary, jd_title, keywords, corpus
+    )
+
+    # 2) Re-label bullets in the job's wording (fact never changes),
+    #    up to 4 per CV so the document stays natural.
+    relabelled: list[dict] = []
+    relabel_cap = 4
     for e in out.experience:
-        if e.bullets:
-            e.bullets = sorted(
-                e.bullets, key=lambda b: _relevance(b, keywords), reverse=True
-            )
+        if relabel_cap <= 0:
+            break
+        for i, b in enumerate(e.bullets or []):
+            if relabel_cap <= 0:
+                break
+            new_b, kw = _relabel_bullet(b, keywords)
+            if kw:
+                e.bullets[i] = new_b
+                relabelled.append({"bullet": new_b, "keyword": kw, "original": b})
+                relabel_cap -= 1
+
+    # 3) Reorder experience: the role with the most JD-relevant content
+    #    leads (stable - chronology preserved within equal relevance).
+    before = [e.title for e in out.experience]
+    out.experience = sorted(
+        out.experience, key=lambda e: _role_relevance(e, keywords), reverse=True
+    )
+    roles_reordered = [e.title for e in out.experience] != before
+
+    # 4) Keyword-forward skill ordering (factual set, reordered only).
     out.skills = _order_skills(out.skills, keywords)
     out.role_focus = jd_title
     out.job_description_version = jd_id
@@ -460,6 +614,9 @@ def tailor(
         "surfaced_keywords": surfaced,
         "gaps": gaps,
         "needs_confirmation": needs_confirmation,
+        "summary_keywords_added": summary_added,
+        "bullets_relabelled": relabelled,
+        "roles_reordered": roles_reordered,
         "coverage": (
             round(
                 100 * sum(1 for p in present if p["in_candidate_profile"])
@@ -470,9 +627,12 @@ def tailor(
             else 0.0
         ),
         "note": (
-            "Coverage shows which of the job's key terms your profile already "
-            "supports. Gaps are questions to answer with real evidence - they "
-            "are never filled in automatically."
+            "Rewrites use the job's own keywords around your real facts: "
+            "the summary gains a targeting sentence (supported keywords only), "
+            "matching bullets are re-labelled in the job's wording, and your "
+            "most relevant role leads. Coverage shows which of the job's key "
+            "terms your profile already supports. Gaps are questions to answer "
+            "with real evidence - they are never filled in automatically."
         ),
     }
     return out, report
