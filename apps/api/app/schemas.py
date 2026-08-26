@@ -165,6 +165,19 @@ class TailoredCvOut(BaseModel):
     created_at: datetime
 
 
+class TailorFromUrlIn(BaseModel):
+    url: str = Field(min_length=8, max_length=500)
+    version_id: str | None = None
+
+
+class TailorFromUrlOut(BaseModel):
+    job: dict
+    jd_id: str
+    version_id: str
+    version_title: str
+    tailored: TailoredCvOut
+
+
 class CheckResult(BaseModel):
     check: str
     passed: bool

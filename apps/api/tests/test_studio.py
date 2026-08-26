@@ -284,3 +284,91 @@ def test_erasure_covers_studio_tables(client, consented_profile, cv_id):
     client.post(f"{API}/applications/{app['id']}/cover-letter")
     assert client.delete(f"{API}/profiles/{consented_profile}").status_code == 204
     assert client.get(f"{API}/applications/{app['id']}").status_code == 404
+
+
+# --- paste a job URL -> tailored CV -------------------------------------------
+
+import app.jobs.sources as jobs_src  # noqa: E402
+
+
+def _fake_posting(url="https://remoteco.example/jobs/123"):
+    return {
+        "dedupe_key": "user-url-test-1",
+        "source": "user_url",
+        "title": "Senior Support Specialist",
+        "company": "RemoteCo",
+        "location": "Remote",
+        "url": url,
+        "description": (
+            "We need a support specialist with customer support, tickets, csat "
+            "and remote experience. Stakeholder management required. "
+        ) * 4,
+        "tags": "",
+        "salary_text": None,
+        "posted_at": None,
+        "open_to_sa": "unknown",
+        "sa_signals_json": "[]",
+        "global_signals_json": "[]",
+        "exclude_signals_json": "[]",
+        "payment_signals_json": "[]",
+        "timezone_signals_json": "[]",
+        "remote_type": "remote",
+        "language": "english",
+    }
+
+
+def test_tailor_from_url_builds_taiored_cv(client, consented_profile, cv_id, monkeypatch):
+    monkeypatch.setattr(jobs_src, "fetch_user_url", lambda url: _fake_posting())
+    res = client.post(
+        f"{API}/profiles/{consented_profile}/tailor-from-url",
+        json={"url": "https://remoteco.example/jobs/123"},
+    )
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["job"]["title"] == "Senior Support Specialist"
+    assert body["job"]["company"] == "RemoteCo"
+    assert body["version_title"]
+    t = body["tailored"]
+    assert t["report"]["jd_title"] == "Senior Support Specialist"
+    assert "Senior Support Specialist" in t["content"]["summary"]
+    assert t["report"]["coverage"] > 0
+
+    # the job is stored (deduped) and visible in the Job Finder
+    res2 = client.post(
+        f"{API}/profiles/{consented_profile}/tailor-from-url",
+        json={"url": "https://remoteco.example/jobs/123"},
+    )
+    assert res2.status_code == 201
+    jobs = client.get(f"{API}/jobs?source=user_url&english_only=false").json()
+    assert sum(1 for j in jobs if j["url"] == "https://remoteco.example/jobs/123") == 1
+
+
+def test_tailor_from_url_requires_consent(client, profile_id, monkeypatch):
+    monkeypatch.setattr(jobs_src, "fetch_user_url", lambda url: _fake_posting())
+    res = client.post(
+        f"{API}/profiles/{profile_id}/tailor-from-url",
+        json={"url": "https://remoteco.example/jobs/123"},
+    )
+    assert res.status_code == 409
+    assert res.json()["detail"]["code"] == "CONSENT_REQUIRED"
+
+
+def test_tailor_from_url_bad_url(client, consented_profile, cv_id):
+    res = client.post(
+        f"{API}/profiles/{consented_profile}/tailor-from-url",
+        json={"url": "ftp://nope.example"},
+    )
+    assert res.status_code == 422
+    assert res.json()["detail"]["code"] == "BAD_URL"
+
+
+def test_tailor_from_url_thin_page(client, consented_profile, cv_id, monkeypatch):
+    thin = _fake_posting()
+    thin["description"] = "Tiny."
+    monkeypatch.setattr(jobs_src, "fetch_user_url", lambda url: thin)
+    res = client.post(
+        f"{API}/profiles/{consented_profile}/tailor-from-url",
+        json={"url": "https://remoteco.example/jobs/999"},
+    )
+    assert res.status_code == 422
+    assert res.json()["detail"]["code"] == "THIN_PAGE"

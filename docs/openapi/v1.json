@@ -3,7 +3,7 @@
   "info": {
     "title": "CareerForge Pro API",
     "description": "CV-first career acceleration for South African remote work. Human-supervised: sensitive actions require explicit consent.",
-    "version": "0.3.6"
+    "version": "0.3.7"
   },
   "paths": {
     "/api/v1/health": {
@@ -1400,6 +1400,59 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Tailor Application Api V1 Applications  App Id  Tailor Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profiles/{profile_id}/tailor-from-url": {
+      "post": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Tailor From Url",
+        "description": "Fetch a public job posting from a pasted URL and immediately build\nthe tailored CV for it.\n\nOne user-directed fetch of a page the user provides (no scraping\nbehind logins). The job is stored (deduped) so it also appears in\nthe Job Finder, and the tailored CV is the same rewrite engine used\neverywhere: real facts + the job's own keywords, gaps flagged.",
+        "operationId": "tailor_from_url_api_v1_profiles__profile_id__tailor_from_url_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TailorFromUrlIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TailorFromUrlOut"
                 }
               }
             }
@@ -8179,6 +8232,65 @@
           "enabled"
         ],
         "title": "SourceStatusOut"
+      },
+      "TailorFromUrlIn": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 8,
+            "title": "Url"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "TailorFromUrlIn"
+      },
+      "TailorFromUrlOut": {
+        "properties": {
+          "job": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Job"
+          },
+          "jd_id": {
+            "type": "string",
+            "title": "Jd Id"
+          },
+          "version_id": {
+            "type": "string",
+            "title": "Version Id"
+          },
+          "version_title": {
+            "type": "string",
+            "title": "Version Title"
+          },
+          "tailored": {
+            "$ref": "#/components/schemas/TailoredCvOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job",
+          "jd_id",
+          "version_id",
+          "version_title",
+          "tailored"
+        ],
+        "title": "TailorFromUrlOut"
       },
       "TailorRequest": {
         "properties": {

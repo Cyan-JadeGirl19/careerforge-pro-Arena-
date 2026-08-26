@@ -204,6 +204,14 @@ export interface TailoredCv {
   created_at: string;
 }
 
+export interface TailorFromUrlOut {
+  job: Job;
+  jd_id: string;
+  version_id: string;
+  version_title: string;
+  tailored: TailoredCv;
+}
+
 export interface RoleRecommendation {
   role: string;
   match_pct: number;

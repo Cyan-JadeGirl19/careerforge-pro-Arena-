@@ -29,11 +29,13 @@ from ...models import (
     CvRecord,
     CvVersion,
     JobDescription,
+    JobPosting,
     Profile,
     TailoredCv,
     VideoMedia,
     VideoResponse,
 )
+from ...jobs import service as jobs_service, sources as jobs_sources
 from ...parsing import ParsedCv
 from ...schemas import (
     ApplicationCreate,
@@ -46,6 +48,9 @@ from ...schemas import (
     CoverLetterOut,
     IntroCardRequest,
     RoleRecommendationOut,
+    TailoredCvOut,
+    TailorFromUrlIn,
+    TailorFromUrlOut,
     TrimRequest,
     VideoAnalyzeOut,
     VideoCreate,
@@ -59,7 +64,7 @@ from ...schemas import (
 HEADSHOT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_HEADSHOT_BYTES = 5 * 1024 * 1024
 from . import applications_internal
-from .documents import get_cv_or_404, get_jd_or_404, get_version_or_404
+from .documents import _tailored_out, get_cv_or_404, get_jd_or_404, get_version_or_404
 from .profiles import get_profile_or_404
 
 router = APIRouter(tags=["studio"])
@@ -285,6 +290,124 @@ def tailor_application(app_id: str, db: Session = Depends(get_db)) -> dict:
     _ensure_tailored(db, app)
     db.refresh(app)
     row = db.get(TailoredCv, app.tailored_cv_id)
+    return {"tailored_cv_id": row.id, "report": json.loads(row.report_json)}
+
+
+# --- paste a job URL -> tailored CV (one step) ---------------------------------
+
+
+@router.post(
+    "/profiles/{profile_id}/tailor-from-url",
+    response_model=TailorFromUrlOut,
+    status_code=201,
+)
+def tailor_from_url(
+    profile_id: str, payload: TailorFromUrlIn, db: Session = Depends(get_db)
+) -> TailorFromUrlOut:
+    """Fetch a public job posting from a pasted URL and immediately build
+    the tailored CV for it.
+
+    One user-directed fetch of a page the user provides (no scraping
+    behind logins). The job is stored (deduped) so it also appears in
+    the Job Finder, and the tailored CV is the same rewrite engine used
+    everywhere: real facts + the job's own keywords, gaps flagged.
+    """
+    from datetime import datetime, timezone
+
+    profile = get_profile_or_404(db, profile_id)
+    require_consent(db, profile.id, "profile_processing")
+    require_consent(db, profile.id, "job_matching")
+
+    try:
+        posting = jobs_sources.fetch_user_url(payload.url)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "BAD_URL", "message": str(exc)},
+        )
+    except Exception as exc:  # noqa: BLE001 - network/parse failures
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "URL_FAILED",
+                "message": f"Could not read that page: {str(exc)[:120]}. "
+                "You can paste the job text manually instead.",
+            },
+        )
+    if len(posting["description"]) < 80:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "THIN_PAGE",
+                "message": "That page didn't contain enough job description text "
+                "to tailor against. Paste the job text manually.",
+            },
+        )
+
+    # Store the job (deduped) so it also shows in the Job Finder.
+    existing_job = db.scalar(
+        select(JobPosting).where(JobPosting.dedupe_key == posting["dedupe_key"])
+    )
+    if existing_job is None:
+        job = JobPosting(
+            id=str(uuid.uuid4()),
+            fetched_at=datetime.now(timezone.utc),
+            **posting,
+        )
+        db.add(job)
+    else:
+        job = existing_job
+
+    # Job description record (deduped by URL) for tailoring + applications.
+    jd = db.scalar(
+        select(JobDescription).where(
+            JobDescription.profile_id == profile.id,
+            JobDescription.source_url == job.url,
+        )
+    )
+    if jd is None:
+        jd = JobDescription(
+            id=str(uuid.uuid4()),
+            profile_id=profile.id,
+            title=job.title,
+            company=job.company,
+            source_url=job.url,
+            text=(job.description or "")[:100000]
+            or f"{job.title} at {job.company or 'unknown company'}",
+        )
+        db.add(jd)
+    db.flush()
+
+    # Pick the version to tailor: the one chosen, else the best fit.
+    versions = db.scalars(
+        select(CvVersion).where(CvVersion.profile_id == profile.id)
+    ).all()
+    if not versions:
+        versions = applications_internal.ensure_versions(db, profile, job.title)
+    if payload.version_id:
+        version = get_version_or_404(db, payload.version_id)
+        if version.profile_id != profile.id:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "OWNERSHIP_MISMATCH",
+                    "message": "That CV version belongs to a different profile.",
+                },
+            )
+    else:
+        version = applications_internal.select_best_version(versions, jd)
+
+    row = applications_internal.tailor_version_for_jd(db, version, jd)
+    db.commit()
+    db.refresh(row)
+    db.refresh(job)
+    return TailorFromUrlOut(
+        job=jobs_service.job_to_dict(job),
+        jd_id=jd.id,
+        version_id=version.id,
+        version_title=version.title,
+        tailored=_tailored_out(row),
+    )
     return {"tailored_cv_id": row.id, "report": json.loads(row.report_json)}
 
 

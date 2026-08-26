@@ -461,3 +461,51 @@ def test_backfill_languages_classifies_nulls(client):
             if row:
                 db.delete(row)
             db.commit()
+
+
+# ------------------------------------------------- user URL extraction (smart)
+
+JSONLD_PAGE = """<html><head>
+<title>Senior Data Analyst - BuildCo | Careers</title>
+<meta property="og:title" content="Senior Data Analyst at BuildCo">
+<meta name="description" content="Short meta.">
+<script type="application/ld+json">{"@type": "JobPosting", "title": "Senior Data Analyst", "description": "<p>We need a data analyst with sql and python for a remote role.</p>", "hiringOrganization": {"name": "BuildCo"}}</script>
+</head><body><div>navigation junk footer junk</div></body></html>"""
+
+META_PAGE = (
+    "<html><head><title>Support Manager - Acme</title>"
+    '<meta name="description" content="'
+    + "We need a support manager to lead the team. " * 12
+    + '"></meta></head><body><p>page body words for the support manager role</p></body></html>'
+)
+
+PLAIN_PAGE = (
+    "<html><head><title>Warehouse Coordinator</title></head>"
+    "<body><div>"
+    + "You will coordinate warehouse operations daily. " * 15
+    + "</div></body></html>"
+)
+
+
+def test_fetch_user_url_prefers_jsonld(monkeypatch):
+    monkeypatch.setattr(sources, "_get", lambda url: JSONLD_PAGE.encode())
+    p = sources.fetch_user_url("https://example.com/jobs/1")
+    assert "Senior Data Analyst" in p["title"]
+    assert p["company"] == "BuildCo"
+    assert "data analyst" in p["description"].lower()
+    assert "navigation junk" not in p["description"]
+
+
+def test_fetch_user_url_meta_and_company_suffix(monkeypatch):
+    monkeypatch.setattr(sources, "_get", lambda url: META_PAGE.encode())
+    p = sources.fetch_user_url("https://example.com/jobs/2")
+    assert p["title"] == "Support Manager"
+    assert p["company"] == "Acme"
+    assert len(p["description"]) > 200
+
+
+def test_fetch_user_url_plain_fallback(monkeypatch):
+    monkeypatch.setattr(sources, "_get", lambda url: PLAIN_PAGE.encode())
+    p = sources.fetch_user_url("https://example.com/jobs/3")
+    assert "Warehouse Coordinator" in p["title"]
+    assert "coordinate warehouse operations" in p["description"]

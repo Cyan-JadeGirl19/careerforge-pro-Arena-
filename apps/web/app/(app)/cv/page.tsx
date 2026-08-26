@@ -34,6 +34,8 @@ export default function CvStudioPage() {
   const [jdCompany, setJdCompany] = useState("");
   const [jdText, setJdText] = useState("");
   const [jdId, setJdId] = useState<string | null>(null);
+  const [jobUrl, setJobUrl] = useState("");
+  const [urlJob, setUrlJob] = useState<{ id: string; title: string; company: string | null } | null>(null);
   // custom version
   const [customRole, setCustomRole] = useState("");
   const [customEmph, setCustomEmph] = useState("");
@@ -178,9 +180,40 @@ export default function CvStudioPage() {
     if (!vid) return;
     setBusy("tailor");
     setError(null);
+    setUrlJob(null);
     try {
       const res = await api.tailorVersion(vid, jdId);
       setTailored(await api.getTailored(res.tailored_cv_id));
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const tailorFromUrl = async () => {
+    if (!session || !jobUrl.trim()) return;
+    setBusy("url");
+    setError(null);
+    try {
+      const res = await api.tailorFromUrl(session.profileId, jobUrl.trim());
+      setTailored(res.tailored);
+      setJdId(res.jd_id);
+      setUrlJob({ id: res.job.id, title: res.job.title, company: res.job.company });
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const createAppFromUrlJob = async () => {
+    if (!session || !urlJob) return;
+    setBusy("app");
+    setError(null);
+    try {
+      const r = await api.jobToApplication(urlJob.id, session.profileId);
+      window.location.href = `/applications/${r.application_id}`;
     } catch (e) {
       fail(e);
     } finally {
@@ -440,6 +473,24 @@ export default function CvStudioPage() {
               )}
             </div>
 
+            <hr className="divider" />
+            <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+              <input
+                value={jobUrl}
+                onChange={(e) => setJobUrl(e.target.value)}
+                placeholder="Or paste a job posting URL (https://…) and skip all of the above"
+                style={{ flex: 2, minWidth: 260, border: "1px solid var(--line)", borderRadius: 8, padding: "9px 11px" }}
+              />
+              <button className="btn" onClick={tailorFromUrl} disabled={busy === "url" || !jobUrl.trim()}>
+                {busy === "url" ? "Fetching & tailoring…" : "Fetch URL & tailor"}
+              </button>
+            </div>
+            <p className="muted" style={{ fontSize: 12.5 }}>
+              The program reads the public posting (one page you provide), then builds the tailored
+              CV immediately: best-matching version, re-written summary, keyword re-labels, your
+              most relevant role first. No login-walled or paywalled pages.
+            </p>
+
             {tailored && (
               <div style={{ marginTop: 18 }} className="stack">
                 <div className="item">
@@ -494,6 +545,11 @@ export default function CvStudioPage() {
                     <a className="btn" href={exportUrl("tailored", tailored.id, "docx")}>
                       Download tailored DOCX
                     </a>
+                    {urlJob && (
+                      <button className="btn secondary" onClick={createAppFromUrlJob} disabled={busy === "app"}>
+                        {busy === "app" ? "Creating…" : `Create full application for “${urlJob.title}”`}
+                      </button>
+                    )}
                     <a className="btn secondary" href={exportUrl("tailored", tailored.id, "pdf")}>
                       PDF
                     </a>

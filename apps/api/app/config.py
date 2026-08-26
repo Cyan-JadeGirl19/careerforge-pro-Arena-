@@ -10,7 +10,7 @@ from functools import lru_cache
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-APP_VERSION = "0.3.7"
+APP_VERSION = "0.3.8"
 
 ALLOWED_ENVIRONMENTS = {"development", "staging", "production", "test"}
 

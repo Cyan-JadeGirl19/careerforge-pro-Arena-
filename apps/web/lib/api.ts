@@ -42,6 +42,7 @@ import type {
   ProfileUpdate,
   RoleRecommendation,
   TailoredCv,
+  TailorFromUrlOut,
   VideoJob,
   VideoQualityReport,
   VideoResponse,
@@ -172,6 +173,11 @@ export const api = {
       `/cv-versions/${versionId}/tailor`,
       { method: "POST", body: JSON.stringify({ jd_id: jdId }) },
     ),
+  tailorFromUrl: (profileId: string, url: string, versionId?: string) =>
+    request<TailorFromUrlOut>(`/profiles/${profileId}/tailor-from-url`, {
+      method: "POST",
+      body: JSON.stringify({ url, version_id: versionId || null }),
+    }),
   getTailored: (id: string) => request<TailoredCv>(`/tailored/${id}`),
 
   recommendRoles: (profileId: string) =>

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.18.0 - 2026-08-26
+
+**Paste a job URL → tailored CV in one step** (user request):
+
+- `POST /profiles/{id}/tailor-from-url` — fetches the public posting
+  (one user-provided page, no logins/walls), stores the job (deduped,
+  also appears in the Job Finder), and immediately builds the tailored
+  CV with the full rewrite engine (summary targeting, keyword
+  re-labels, role reordering). Returns job + version + tailored CV.
+- Smarter job-page extraction: JSON-LD JobPosting data (authoritative),
+  then description blocks, then meta tags, then page text; company from
+  structured data or a plausible title suffix; conservative when unsure.
+  Verified on a live Keeper Security posting (11k chars of real JD).
+- CV Studio: "Fetch URL & tailor" row under the manual tailoring box,
+  plus a "Create full application" button on the result (one click to
+  the complete package: tailored CV + letter + video script).
+- Guards: consent-gated, bad URL → 422, thin pages (<80 chars of JD)
+  rejected with a pointer to paste the text manually.
+- 166 API tests passing (7 new), web build green, contract re-exported
+
 ## 0.17.0 - 2026-08-26
 
 Tailored CVs now **re-write** for the job, not just reorder (user
