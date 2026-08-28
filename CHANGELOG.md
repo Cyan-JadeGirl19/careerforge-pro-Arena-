@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.21.0 - 2026-08-28
+
+**Video storage: compression + usage visibility** (unblocks uploads on
+the 1 GB free-tier database):
+
+- The first successful upload attempt hit the Postgres storage quota
+  ("Server storage is full"). Raw 2-3 minute recordings (100-400 MB)
+  don't fit in 1 GB for long, so:
+- **Auto-compression on upload** - files over 20 MB are re-encoded in a
+  background job to H.264 720p before storing (a 3-minute recording
+  goes from ~100-400 MB to ~15-40 MB, roughly 5-10x smaller). If
+  re-encoding doesn't shrink the file, the original is kept. The upload
+  button shows the store phase progress; the UI says when a file was
+  compressed.
+- **Storage card in Settings** - database total (pg_size_pretty),
+  video media count + bytes, reference-document bytes, and a plain
+  hint about deleting old takes to free room.
+- The store step logs the full DB error to the service logs if the
+  quota is hit, so the next failure is diagnosable.
+- 182 API tests passing (compression round-trip, storage endpoint),
+  web build green, contract re-exported
+
 ## 0.20.0 - 2026-08-28
 
 **Video upload fixed for free-tier hosting** (fixes "Upload failed (500)"):

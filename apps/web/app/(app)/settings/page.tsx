@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useSession } from "../../../lib/session";
-import type { ConsentItem, ConsentOut, GmailStatus, ProfileOut } from "../../../../../packages/contracts/types";
+import type { ConsentItem, ConsentOut, GmailStatus, ProfileOut, StorageUsage } from "../../../../../packages/contracts/types";
 
 const CONSENT_INFO: Record<ConsentItem, string> = {
   profile_processing: "Store and analyse your CV to build your CV versions.",
@@ -23,6 +23,7 @@ export default function SettingsPage() {
   const [confirmDelete, setConfirmDelete] = useState("");
   const [gmail, setGmail] = useState<GmailStatus | null>(null);
   const [gmailBusy, setGmailBusy] = useState(false);
+  const [storage, setStorage] = useState<StorageUsage | null>(null);
 
   const load = useCallback(async () => {
     if (!session) return;
@@ -41,7 +42,14 @@ export default function SettingsPage() {
     } catch {
       setGmail(null);
     }
+    api
+      .storageUsage(session.profileId)
+      .then(setStorage)
+      .catch(() => setStorage(null));
   }, [session]);
+
+  const fmtBytes = (n: number) =>
+    n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(0, Math.round(n / 1024))} KB`;
 
   useEffect(() => {
     load();
@@ -210,6 +218,34 @@ export default function SettingsPage() {
             {gmailBusy ? "Waiting for sign-in…" : "Connect Gmail"}
           </button>
         )}
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h3>Storage</h3>
+        {storage ? (
+          <table className="table">
+            <tbody>
+              <tr>
+                <td>Database total (free hosting limit: 1 GB)</td>
+                <td>{storage.database_size}</td>
+              </tr>
+              <tr>
+                <td>Video media ({storage.video_media_count} file{storage.video_media_count === 1 ? "" : "s"})</td>
+                <td>{fmtBytes(storage.video_media_bytes)}</td>
+              </tr>
+              <tr>
+                <td>Reference documents</td>
+                <td>{fmtBytes(storage.reference_document_bytes)}</td>
+              </tr>
+            </tbody>
+          </table>
+        ) : (
+          <p className="muted">Loading…</p>
+        )}
+        <p className="muted" style={{ fontSize: 12.5 }}>
+          Video files take the most space. Delete old takes in the Voice/Video Studio to free
+          room. Large uploads are auto-compressed on the server, so new videos stay small.
+        </p>
       </div>
 
       <div className="card">

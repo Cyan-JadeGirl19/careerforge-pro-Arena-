@@ -9,6 +9,7 @@ too. Processing is real file-level work (ffmpeg): nothing is faked, and
 every artefact is stored against the video response for download.
 """
 import json
+import logging
 import re
 import uuid
 from contextlib import nullcontext
@@ -16,7 +17,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from ... import builders, ffmpegx, media_jobs as jobs, quality, roles, uploads, video, writing
@@ -32,6 +33,7 @@ from ...models import (
     JobDescription,
     JobPosting,
     Profile,
+    ReferenceDocument,
     TailoredCv,
     VideoMedia,
     VideoResponse,
@@ -780,60 +782,152 @@ async def upload_chunk(
 
 
 @router.post(
-    "/uploads/{upload_id}/complete", response_model=VideoOut, status_code=201
+    "/uploads/{upload_id}/complete", response_model=VideoJobOut, status_code=202
 )
-def upload_complete(upload_id: str, db: Session = Depends(get_db)) -> VideoOut:
+def upload_complete(upload_id: str, db: Session = Depends(get_db)) -> VideoJobOut:
+    """Finish the chunked upload: validates, then stores the file in a
+    background job (large files are compressed first - free-tier Postgres
+    is 1 GB total, so a 2-3 minute recording is re-encoded to H.264 720p
+    before it is stored). Poll /jobs/video/{job_id}."""
     try:
         session = uploads.complete_session(upload_id)
     except uploads.UploadError as e:
         raise HTTPException(status_code=e.status, detail={"code": e.code, "message": e.message})
     v = get_video_or_404(db, session.video_id)
-    probe = None
-    data = b""
+    require_consent(db, v.profile_id, "media_use")
+    job = jobs.submit("store-upload", _store_upload_worker, session.video_id, upload_id)
+    return VideoJobOut(**job.to_out())
+
+
+COMPRESS_THRESHOLD = 20 * 1024 * 1024  # files bigger than this get re-encoded
+_upload_logger = logging.getLogger("careerforge.upload")
+
+
+def _store_upload_worker(job: jobs.Job, video_id: str, upload_id: str) -> None:
+    db = SessionLocal()
     try:
-        probe = ffmpegx.probe_path(Path(session.temp_path))
-        data = Path(session.temp_path).read_bytes()
-    except RuntimeError:
-        probe = None
-    except OSError:
-        probe = None
+        job.phase = "checking video"
+        job.progress = 0.1
+        try:
+            session = uploads.get_session(upload_id)
+        except uploads.UploadError:
+            raise RuntimeError("Upload session expired - please upload again.")
+        src = Path(session.temp_path)
+        probe_src = ffmpegx.probe_path(src)
+        if not probe_src.duration or probe_src.duration < 2 or not probe_src.video_codec:
+            raise RuntimeError(
+                "That file could not be read as a video. Try re-exporting it as MP4."
+            )
+
+        stored_ct = session.content_type
+        stored_name = (session.filename or "recording")[:300]
+        compressed = False
+        data = b""
+        if probe_src.size > COMPRESS_THRESHOLD:
+            job.phase = "compressing for the web"
+            job.progress = 0.3
+            vfilter = None
+            if (probe_src.height or 0) > 720 or (probe_src.width or 0) > 1280:
+                vfilter = (
+                    "scale=1280:720:force_original_aspect_ratio=decrease,"
+                    "pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1"
+                )
+            with ffmpegx.temp_out(".mp4") as dst:
+                ffmpegx.reencode_mp4(
+                    src, dst, vfilter=vfilter, has_audio=bool(probe_src.audio_codec)
+                )
+                data = dst.read_bytes()
+            if len(data) >= probe_src.size:
+                # Re-encoding didn't make it smaller (already compact) -
+                # keep the original bytes instead of storing a bigger file.
+                with open(src, "rb") as fh:
+                    data = fh.read()
+                probe = probe_src
+            else:
+                with ffmpegx.temp_media(data) as p2:
+                    probe = ffmpegx.probe_path(p2)
+                stem = re.sub(r"\.[a-z0-9]+$", "", session.filename or "") or "recording"
+                stored_name = f"{stem}.mp4"[:300]
+                stored_ct = "video/mp4"
+                compressed = True
+        else:
+            with open(src, "rb") as fh:
+                data = fh.read()
+            probe = probe_src
+
+        job.phase = "saving privately"
+        job.progress = 0.8
+        m = VideoMedia(
+            id=str(uuid.uuid4()),
+            video_response_id=video_id,
+            kind="original",
+            filename=stored_name,
+            content_type=stored_ct,
+            size=len(data),
+            data=data,
+            probe_json=json.dumps(probe.to_dict()),
+        )
+        db.add(m)
+        v = db.get(VideoResponse, video_id)
+        if v is None:
+            raise RuntimeError("This video response no longer exists.")
+        v.media_status = "uploaded"
+        v.likeness_consent = True
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            _upload_logger.exception(
+                "storing uploaded media failed (video %s) - possible storage quota",
+                video_id,
+            )
+            raise RuntimeError(
+                "Server storage is full - delete some old media in the Video "
+                "Studio, then try the upload again."
+            )
+        db.refresh(m)
+        job.progress = 1.0
+        job.result = {"media_id": m.id, "compressed": compressed}
     finally:
-        uploads.discard(upload_id)
-    if probe is None or not probe.duration or probe.duration < 2 or not probe.video_codec:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "UNREADABLE_MEDIA",
-                "message": "That file could not be read as a video. Try re-exporting it as MP4.",
-            },
+        try:
+            uploads.discard(upload_id)
+        except Exception:
+            pass
+        db.close()
+
+
+# --- storage usage --------------------------------------------------------------
+
+
+@router.get("/profiles/{profile_id}/storage")
+def storage_usage(profile_id: str, db: Session = Depends(get_db)) -> dict:
+    """How much of the (limited, free) storage media is using."""
+    get_profile_or_404(db, profile_id)
+    out = {
+        "database_size": "n/a",
+        "video_media_count": 0,
+        "video_media_bytes": 0,
+        "reference_document_bytes": 0,
+    }
+    if db.bind.dialect.name == "postgresql":
+        out["database_size"] = (
+            db.scalar(text("SELECT pg_size_pretty(pg_database_size(current_database()))"))
+            or "n/a"
         )
-    m = VideoMedia(
-        id=str(uuid.uuid4()),
-        video_response_id=v.id,
-        kind="original",
-        filename=session.filename[:300],
-        content_type=session.content_type,
-        size=probe.size,
-        data=data,
-        probe_json=json.dumps(probe.to_dict()),
-    )
-    db.add(m)
-    v.media_status = "uploaded"
-    v.likeness_consent = True
-    try:
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise HTTPException(
-            status_code=507,
-            detail={
-                "code": "STORAGE_FULL",
-                "message": "Server storage is full - delete some old media in the Video "
-                "Studio, then try the upload again.",
-            },
+        out["video_media_count"] = db.scalar(text("SELECT COUNT(*) FROM video_media")) or 0
+        out["video_media_bytes"] = (
+            db.scalar(text("SELECT COALESCE(SUM(size),0) FROM video_media")) or 0
         )
-    db.refresh(v)
-    return _video_out(v)
+        out["reference_document_bytes"] = (
+            db.scalar(text("SELECT COALESCE(SUM(size),0) FROM reference_documents")) or 0
+        )
+    else:
+        rows = db.scalars(select(VideoMedia)).all()
+        out["video_media_count"] = len(rows)
+        out["video_media_bytes"] = sum(r.size for r in rows)
+        docs = db.scalars(select(ReferenceDocument)).all()
+        out["reference_document_bytes"] = sum(r.size for r in docs)
+    return out
 
 
 @router.post("/videos/{video_id}/media/{media_id}/analyze", response_model=VideoAnalyzeOut)

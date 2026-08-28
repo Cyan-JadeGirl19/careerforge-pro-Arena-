@@ -6,6 +6,7 @@ including libx264 encoding, framing crops, loudness normalisation,
 caption burn-in and MP3 extraction.
 """
 import io
+import os
 import time
 
 import pytest
@@ -368,20 +369,86 @@ def _send_chunks(client, upload_id, data, chunk=5 * 1024 * 1024):
         index += 1
 
 
+def _wait_upload_job(client, job_id, timeout=300):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        st = client.get(f"{API}/jobs/video/{job_id}").json()
+        if st["status"] != "running":
+            return st
+        time.sleep(0.5)
+    raise AssertionError("upload job did not finish in time")
+
+
 def test_chunked_upload_roundtrip(client, app_video, test_clip):
-    _, video_id, _ = app_video
+    app_id, video_id, _ = app_video
     init = _chunk_init(client, video_id, test_clip)
     assert init.status_code == 201, init.text
     uid = init.json()["upload_id"]
     _send_chunks(client, uid, test_clip)
     res = client.post(f"{API}/uploads/{uid}/complete")
-    assert res.status_code == 201, res.text
+    assert res.status_code == 202, res.text
+    st = _wait_upload_job(client, res.json()["job_id"])
+    assert st["status"] == "done", st
+    # media is stored against the video response
+    app = client.get(f"{API}/applications/{app_id}").json()
+    media = app["videos"][0]["media"]
+    assert len(media) == 1
+    assert media[0]["kind"] == "original"
+    assert media[0]["duration"] and 5 < media[0]["duration"] < 8
+    assert st["result"]["compressed"] is False, "small file stays as-is"
+
+
+def test_chunked_upload_compresses_large_files(client, app_video, monkeypatch):
+    import subprocess
+
+    from app.api.v1 import studio as studio_mod
+
+    # A low-CRF (near-lossless) clip: big, and guaranteed to shrink when
+    # re-encoded at CRF 21.
+    import tempfile
+
+    fd, clip_path = tempfile.mkstemp(suffix=".mp4")
+    os.close(fd)
+    ffmpegx.run_ffmpeg(
+        [
+            "-hide_banner", "-y",
+            "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30:duration=6",
+            "-f", "lavfi", "-i", "sine=frequency=440:duration=6",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "10",
+            "-pix_fmt", "yuv420p", "-c:a", "aac", clip_path,
+        ],
+        timeout=300,
+    )
+    test_clip = open(clip_path, "rb").read()
+    os.unlink(clip_path)
+
+    monkeypatch.setattr(studio_mod, "COMPRESS_THRESHOLD", 10_000)
+    app_id, video_id, _ = app_video
+    original_size = len(test_clip)
+    init = _chunk_init(client, video_id, test_clip)
+    uid = init.json()["upload_id"]
+    _send_chunks(client, uid, test_clip)
+    res = client.post(f"{API}/uploads/{uid}/complete")
+    assert res.status_code == 202
+    st = _wait_upload_job(client, res.json()["job_id"], timeout=600)
+    assert st["status"] == "done", st
+    assert st["result"]["compressed"] is True
+    app = client.get(f"{API}/applications/{app_id}").json()
+    media = app["videos"][0]["media"]
+    assert len(media) == 1
+    assert media[0]["content_type"] == "video/mp4"
+    assert media[0]["size"] < original_size, "compressed file must be smaller"
+
+
+def test_storage_usage_endpoint(client, app_video):
+    app_id, video_id, _ = app_video
+    app = client.get(f"{API}/applications/{app_id}").json()
+    res = client.get(f"{API}/profiles/{app['profile_id']}/storage")
+    assert res.status_code == 200
     body = res.json()
-    assert body["media_status"] == "uploaded"
-    assert body["likeness_consent"] is True
-    assert len(body["media"]) == 1
-    assert body["media"][0]["kind"] == "original"
-    assert body["media"][0]["duration"] and 5 < body["media"][0]["duration"] < 8
+    assert body["video_media_count"] >= 0
+    assert body["video_media_bytes"] >= 0
+    assert "database_size" in body
 
 
 def test_chunked_upload_requires_likeness_consent(client, app_video, test_clip):

@@ -43,6 +43,7 @@ import type {
   ProfileOut,
   ProfileUpdate,
   RoleRecommendation,
+  StorageUsage,
   TailoredCv,
   TailorFromUrlOut,
   UploadInitOut,
@@ -292,14 +293,17 @@ export const api = {
     return res.json();
   },
   /** Chunked upload: small fast requests so long uploads survive
-   *  free-tier request timeouts. Reports progress 0-100. */
+   *  free-tier request timeouts. Reports progress 0-100. The final
+   *  "complete" step stores (and, for large files, compresses) the file
+   *  in a background job - this function waits for it and returns the
+   *  job result ({ media_id, compressed }). */
   uploadVideoChunked: async (
     videoId: string,
     blob: Blob,
     filename: string,
     likenessConsent: boolean,
     onProgress?: (pct: number) => void,
-  ): Promise<VideoResponse> => {
+  ): Promise<Record<string, unknown> | null> => {
     const CH = 5 * 1024 * 1024;
     const init = await request<UploadInitOut>(`/videos/${videoId}/upload-init`, {
       method: "POST",
@@ -332,14 +336,25 @@ export const api = {
       }
       offset += chunk.size;
       index += 1;
-      onProgress?.(Math.min(99, Math.round((offset / Math.max(1, blob.size)) * 100)));
+      onProgress?.(Math.min(95, Math.round((offset / Math.max(1, blob.size)) * 100)));
     }
-    const done = await request<VideoResponse>(`/uploads/${init.upload_id}/complete`, {
+    const job = await request<VideoJob>(`/uploads/${init.upload_id}/complete`, {
       method: "POST",
       body: "{}",
     });
-    onProgress?.(100);
-    return done;
+    for (let i = 0; i < 400; i++) {
+      const st = await request<VideoJob>(`/jobs/video/${job.job_id}`);
+      if (st.status !== "running") {
+        onProgress?.(100);
+        if (st.status === "failed") {
+          throw new ApiError(500, "UPLOAD_STORE_FAILED", st.error || "Could not store the video.");
+        }
+        return st.result;
+      }
+      onProgress?.(Math.min(99, 95 + Math.round((st.progress || 0) * 4)));
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    throw new ApiError(500, "UPLOAD_TIMEOUT", "Still storing - check back in a minute.");
   },
   analyzeVideoMedia: (videoId: string, mediaId: string) =>
     request<{ media_id: string; report: VideoQualityReport }>(
@@ -514,6 +529,8 @@ export const api = {
 
   // gmail outreach (drafts only - the app never sends)
   gmailStatus: (profileId: string) => request<GmailStatus>(`/profiles/${profileId}/gmail/status`),
+  storageUsage: (profileId: string) =>
+    request<StorageUsage>(`/profiles/${profileId}/storage`),
   gmailAuthorize: (profileId: string) =>
     request<{ auth_url: string }>(`/profiles/${profileId}/gmail/authorize`, {
       method: "POST",

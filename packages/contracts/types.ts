@@ -235,6 +235,13 @@ export interface UploadInitOut {
   chunk_size: number;
 }
 
+export interface StorageUsage {
+  database_size: string;
+  video_media_count: number;
+  video_media_bytes: number;
+  reference_document_bytes: number;
+}
+
 export interface RoleRecommendation {
   role: string;
   match_pct: number;

@@ -279,12 +279,16 @@ export default function VideoStudioPage() {
     try {
       const vid = await ensureVideo();
       // Chunked upload: small fast requests so long videos survive the
-      // free-tier request timeout (single big uploads were failing with 500).
-      const v = await api.uploadVideoChunked(vid, blob, filename, consent, setUploadPct);
-      setVideo(v);
+      // free-tier request timeout. The server stores the file in a
+      // background job (auto-compressing large files) and we wait for it.
+      const result = await api.uploadVideoChunked(vid, blob, filename, consent, setUploadPct);
       await refreshVideo();
       setReport(null);
-      setSavedNote("Uploaded and stored privately with this application. Run the quality check, then enhance and export.");
+      setSavedNote(
+        (result?.compressed
+          ? "Upload complete - the studio auto-compressed it for the web (smaller file, still clear). "
+          : "") + "It's stored privately with this application. Run the quality check, then enhance and export."
+      );
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Upload failed.");
     } finally {

@@ -3,7 +3,7 @@
   "info": {
     "title": "CareerForge Pro API",
     "description": "CV-first career acceleration for South African remote work. Human-supervised: sensitive actions require explicit consent.",
-    "version": "0.3.9"
+    "version": "0.3.10"
   },
   "paths": {
     "/api/v1/health": {
@@ -1946,6 +1946,7 @@
           "studio"
         ],
         "summary": "Upload Complete",
+        "description": "Finish the chunked upload: validates, then stores the file in a\nbackground job (large files are compressed first - free-tier Postgres\nis 1 GB total, so a 2-3 minute recording is re-encoded to H.264 720p\nbefore it is stored). Poll /jobs/video/{job_id}.",
         "operationId": "upload_complete_api_v1_uploads__upload_id__complete_post",
         "parameters": [
           {
@@ -1959,12 +1960,57 @@
           }
         ],
         "responses": {
-          "201": {
+          "202": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VideoOut"
+                  "$ref": "#/components/schemas/VideoJobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profiles/{profile_id}/storage": {
+      "get": {
+        "tags": [
+          "studio"
+        ],
+        "summary": "Storage Usage",
+        "description": "How much of the (limited, free) storage media is using.",
+        "operationId": "storage_usage_api_v1_profiles__profile_id__storage_get",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Storage Usage Api V1 Profiles  Profile Id  Storage Get"
                 }
               }
             }
