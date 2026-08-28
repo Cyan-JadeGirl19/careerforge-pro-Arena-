@@ -834,7 +834,12 @@ def _store_upload_worker(job: jobs.Job, video_id: str, upload_id: str) -> None:
                 )
             with ffmpegx.temp_out(".mp4") as dst:
                 ffmpegx.reencode_mp4(
-                    src, dst, vfilter=vfilter, has_audio=bool(probe_src.audio_codec)
+                    src,
+                    dst,
+                    vfilter=vfilter,
+                    has_audio=bool(probe_src.audio_codec),
+                    preset="ultrafast",  # speed: runs while the user waits
+                    crf=23,
                 )
                 data = dst.read_bytes()
             if len(data) >= probe_src.size:

@@ -302,7 +302,7 @@ export const api = {
     blob: Blob,
     filename: string,
     likenessConsent: boolean,
-    onProgress?: (pct: number) => void,
+    onProgress?: (pct: number, phase?: string) => void,
   ): Promise<Record<string, unknown> | null> => {
     const CH = 5 * 1024 * 1024;
     const init = await request<UploadInitOut>(`/videos/${videoId}/upload-init`, {
@@ -342,16 +342,19 @@ export const api = {
       method: "POST",
       body: "{}",
     });
-    for (let i = 0; i < 400; i++) {
+    for (let i = 0; i < 800; i++) {
       const st = await request<VideoJob>(`/jobs/video/${job.job_id}`);
       if (st.status !== "running") {
-        onProgress?.(100);
+        onProgress?.(100, undefined);
         if (st.status === "failed") {
           throw new ApiError(500, "UPLOAD_STORE_FAILED", st.error || "Could not store the video.");
         }
         return st.result;
       }
-      onProgress?.(Math.min(99, 95 + Math.round((st.progress || 0) * 4)));
+      onProgress?.(
+        Math.min(99, 95 + Math.round((st.progress || 0) * 4)),
+        st.status === "running" ? st.phase : undefined,
+      );
       await new Promise((r) => setTimeout(r, 1500));
     }
     throw new ApiError(500, "UPLOAD_TIMEOUT", "Still storing - check back in a minute.");

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.22.0 - 2026-08-28
+
+**Upload "stuck at 96%" fix** (visible progress + faster compression):
+
+- 96% meant the server-side store phase had started but the UI showed
+  no detail. Now the button shows the live phase - "Uploading… 96%" →
+  "Compressing for the web… 96%" → "Saving… 99%" - plus an explainer
+  line: large videos are compressed on the server and the compress
+  phase can take a few minutes for a 2-3 minute video (keep the tab
+  open).
+- Upload auto-compression switched from `veryfast` to `ultrafast`
+  (CRF 23): noticeably faster on the free-tier CPU at a negligible
+  size cost.
+- Client now waits up to 20 minutes for the store job (was 10) and
+  reports the job's live progress/phase.
+- 182 API tests passing, web build green
+
 ## 0.21.0 - 2026-08-28
 
 **Video storage: compression + usage visibility** (unblocks uploads on

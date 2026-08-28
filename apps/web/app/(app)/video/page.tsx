@@ -75,6 +75,7 @@ export default function VideoStudioPage() {
   const [consent, setConsent] = useState(false);
   const [serverBusy, setServerBusy] = useState<string | null>(null);
   const [uploadPct, setUploadPct] = useState(0);
+  const [uploadPhase, setUploadPhase] = useState<string | null>(null);
   const [jobNote, setJobNote] = useState<string | null>(null);
   const [report, setReport] = useState<{ mediaId: string; report: VideoQualityReport } | null>(null);
   const [capText, setCapText] = useState("");
@@ -274,14 +275,19 @@ export default function VideoStudioPage() {
     }
     setServerBusy("upload");
     setUploadPct(0);
+    setUploadPhase(null);
     setError(null);
     setSavedNote(null);
     try {
       const vid = await ensureVideo();
       // Chunked upload: small fast requests so long videos survive the
       // free-tier request timeout. The server stores the file in a
-      // background job (auto-compressing large files) and we wait for it.
-      const result = await api.uploadVideoChunked(vid, blob, filename, consent, setUploadPct);
+      // background job (auto-compressing large files) and we wait for it,
+      // showing the store phase so "96%" is never a mystery.
+      const result = await api.uploadVideoChunked(vid, blob, filename, consent, (pct, phase) => {
+        setUploadPct(pct);
+        setUploadPhase(phase ?? null);
+      });
       await refreshVideo();
       setReport(null);
       setSavedNote(
@@ -296,8 +302,16 @@ export default function VideoStudioPage() {
     }
   };
 
-  const uploadLabel = (fallback: string) =>
-    serverBusy === "upload" ? (uploadPct > 0 ? `Uploading… ${uploadPct}%` : "Uploading…") : fallback;
+  const PHASE_LABEL: Record<string, string> = {
+    "checking video": "Checking video",
+    "compressing for the web": "Compressing for the web",
+    "saving privately": "Saving",
+  };
+  const uploadLabel = (fallback: string) => {
+    if (serverBusy !== "upload") return fallback;
+    if (uploadPhase && PHASE_LABEL[uploadPhase]) return `${PHASE_LABEL[uploadPhase]}… ${uploadPct}%`;
+    return uploadPct > 0 ? `Uploading… ${uploadPct}%` : "Uploading…";
+  };
 
   const onFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -666,6 +680,13 @@ export default function VideoStudioPage() {
                 MP4, WebM or MOV, up to 150 MB. Or use “Send this take to the studio” above after recording.
               </span>
             </div>
+            {serverBusy === "upload" && uploadPhase && (
+              <p className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>
+                {uploadPhase === "compressing for the web"
+                  ? "Large videos are compressed on the server so they store small. This phase can take a few minutes for a 2–3 minute video — please keep this tab open."
+                  : "Finishing up — storing your file privately. Keep this tab open."}
+              </p>
+            )}
 
             {media.length > 0 && (
               <>

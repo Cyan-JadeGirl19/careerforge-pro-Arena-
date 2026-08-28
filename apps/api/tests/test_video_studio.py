@@ -403,8 +403,8 @@ def test_chunked_upload_compresses_large_files(client, app_video, monkeypatch):
 
     from app.api.v1 import studio as studio_mod
 
-    # A low-CRF (near-lossless) clip: big, and guaranteed to shrink when
-    # re-encoded at CRF 21.
+    # A near-lossless (CRF 4) clip: big, and guaranteed to shrink when
+    # re-encoded at CRF 23 - like a real phone/recorder recording.
     import tempfile
 
     fd, clip_path = tempfile.mkstemp(suffix=".mp4")
@@ -414,7 +414,7 @@ def test_chunked_upload_compresses_large_files(client, app_video, monkeypatch):
             "-hide_banner", "-y",
             "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30:duration=6",
             "-f", "lavfi", "-i", "sine=frequency=440:duration=6",
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "10",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "4",
             "-pix_fmt", "yuv420p", "-c:a", "aac", clip_path,
         ],
         timeout=300,

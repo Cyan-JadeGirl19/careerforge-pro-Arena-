@@ -286,11 +286,15 @@ def reencode_mp4(
     burn_vtt: Path | None = None,
     has_audio: bool = True,
     timeout: int = 1500,
+    preset: str = "veryfast",
+    crf: int = 21,
 ) -> None:
     """Encode to H.264/AAC MP4 (faststart, 720p-class).
 
-    `veryfast` keeps CPU/memory low (Render free tier) while staying
-    well within quality for application videos.
+    `veryfast` (default) keeps CPU/memory low (Render free tier) while
+    staying well within quality for application videos. Pass
+    `preset="ultrafast"` (higher CRF) when speed matters more than the
+    few extra kilobytes - e.g. the upload auto-compression path.
     """
     vf: list[str] = []
     if vfilter:
@@ -303,7 +307,7 @@ def reencode_mp4(
     if afilter and has_audio:
         args += ["-af", afilter]
     args += [
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
+        "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
         "-pix_fmt", "yuv420p", "-profile:v", "high",
     ]
     if has_audio:
