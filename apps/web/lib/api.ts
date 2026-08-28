@@ -45,6 +45,7 @@ import type {
   RoleRecommendation,
   TailoredCv,
   TailorFromUrlOut,
+  UploadInitOut,
   VideoJob,
   VideoQualityReport,
   VideoResponse,
@@ -289,6 +290,56 @@ export const api = {
       throw new ApiError(res.status, code, message);
     }
     return res.json();
+  },
+  /** Chunked upload: small fast requests so long uploads survive
+   *  free-tier request timeouts. Reports progress 0-100. */
+  uploadVideoChunked: async (
+    videoId: string,
+    blob: Blob,
+    filename: string,
+    likenessConsent: boolean,
+    onProgress?: (pct: number) => void,
+  ): Promise<VideoResponse> => {
+    const CH = 5 * 1024 * 1024;
+    const init = await request<UploadInitOut>(`/videos/${videoId}/upload-init`, {
+      method: "POST",
+      body: JSON.stringify({
+        filename,
+        content_type: blob.type || "video/webm",
+        size: blob.size,
+        likeness_consent: likenessConsent,
+      }),
+    });
+    let offset = 0;
+    let index = 0;
+    while (offset < blob.size) {
+      const chunk = blob.slice(offset, offset + CH);
+      const res = await fetch(`/api/v1/uploads/${init.upload_id}/chunk?index=${index}`, {
+        method: "POST",
+        body: chunk,
+      });
+      if (!res.ok) {
+        let code = "UPLOAD_FAILED";
+        let message = `Upload failed (${res.status})`;
+        try {
+          const b = await res.json();
+          if (b?.detail?.code) code = b.detail.code;
+          if (b?.detail?.message) message = b.detail.message;
+        } catch {
+          // non-JSON body
+        }
+        throw new ApiError(res.status, code, message);
+      }
+      offset += chunk.size;
+      index += 1;
+      onProgress?.(Math.min(99, Math.round((offset / Math.max(1, blob.size)) * 100)));
+    }
+    const done = await request<VideoResponse>(`/uploads/${init.upload_id}/complete`, {
+      method: "POST",
+      body: "{}",
+    });
+    onProgress?.(100);
+    return done;
   },
   analyzeVideoMedia: (videoId: string, mediaId: string) =>
     request<{ media_id: string; report: VideoQualityReport }>(

@@ -230,6 +230,11 @@ export interface CvEvidenceOut {
   message: string;
 }
 
+export interface UploadInitOut {
+  upload_id: string;
+  chunk_size: number;
+}
+
 export interface RoleRecommendation {
   role: string;
   match_pct: number;

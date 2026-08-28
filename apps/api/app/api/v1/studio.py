@@ -12,13 +12,14 @@ import json
 import re
 import uuid
 from contextlib import nullcontext
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ... import builders, ffmpegx, media_jobs as jobs, quality, roles, video, writing
+from ... import builders, ffmpegx, media_jobs as jobs, quality, roles, uploads, video, writing
 from ...captions import transcript_to_cues, cues_to_vtt
 from ...content import CvContent
 from ...consents import get_active_consent, require_consent
@@ -52,6 +53,9 @@ from ...schemas import (
     TailorFromUrlIn,
     TailorFromUrlOut,
     TrimRequest,
+    UploadChunkOut,
+    UploadInitIn,
+    UploadInitOut,
     VideoAnalyzeOut,
     VideoCreate,
     VideoEnhanceRequest,
@@ -721,6 +725,115 @@ def _suffix_for_probe(ct: str) -> str:
     if "quicktime" in ct:
         return ".mov"
     return ".mp4"
+
+
+# --- chunked upload (free-tier friendly) ---------------------------------------
+#
+# Render's free tier kills a single HTTP request that runs ~100 s, so a
+# 2-3 minute video on a slow uplink dies mid-request ("Upload failed
+# (500)"). The client instead splits the file into ~5 MB chunks; each
+# request is small and fast, bytes stream to a temp file (no giant
+# in-memory buffer), and "complete" probes + stores the finished file.
+
+
+@router.post(
+    "/videos/{video_id}/upload-init",
+    response_model=UploadInitOut,
+    status_code=201,
+)
+def upload_init(
+    video_id: str, payload: UploadInitIn, db: Session = Depends(get_db)
+) -> UploadInitOut:
+    v = get_video_or_404(db, video_id)
+    require_consent(db, v.profile_id, "media_use")
+    if not payload.likeness_consent:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "LIKENESS_CONSENT_REQUIRED",
+                "message": "Confirm the face and voice in this video are yours "
+                "(or you have permission to use them) before uploading.",
+            },
+        )
+    try:
+        upload_id, _ = uploads.init_session(
+            v.id, v.profile_id, payload.filename, payload.content_type, payload.size
+        )
+    except uploads.UploadError as e:
+        raise HTTPException(status_code=e.status, detail={"code": e.code, "message": e.message})
+    return UploadInitOut(upload_id=upload_id, chunk_size=uploads.CHUNK_SIZE)
+
+
+@router.post("/uploads/{upload_id}/chunk", response_model=UploadChunkOut)
+async def upload_chunk(
+    request: Request, upload_id: str, index: int = Query(..., ge=0)
+) -> UploadChunkOut:
+    body = await request.body()
+    try:
+        session = uploads.write_chunk(upload_id, index, body)
+    except uploads.UploadError as e:
+        raise HTTPException(status_code=e.status, detail={"code": e.code, "message": e.message})
+    return UploadChunkOut(
+        received_bytes=session.received_bytes,
+        complete=session.received_bytes == session.expected_size,
+    )
+
+
+@router.post(
+    "/uploads/{upload_id}/complete", response_model=VideoOut, status_code=201
+)
+def upload_complete(upload_id: str, db: Session = Depends(get_db)) -> VideoOut:
+    try:
+        session = uploads.complete_session(upload_id)
+    except uploads.UploadError as e:
+        raise HTTPException(status_code=e.status, detail={"code": e.code, "message": e.message})
+    v = get_video_or_404(db, session.video_id)
+    probe = None
+    data = b""
+    try:
+        probe = ffmpegx.probe_path(Path(session.temp_path))
+        data = Path(session.temp_path).read_bytes()
+    except RuntimeError:
+        probe = None
+    except OSError:
+        probe = None
+    finally:
+        uploads.discard(upload_id)
+    if probe is None or not probe.duration or probe.duration < 2 or not probe.video_codec:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "UNREADABLE_MEDIA",
+                "message": "That file could not be read as a video. Try re-exporting it as MP4.",
+            },
+        )
+    m = VideoMedia(
+        id=str(uuid.uuid4()),
+        video_response_id=v.id,
+        kind="original",
+        filename=session.filename[:300],
+        content_type=session.content_type,
+        size=probe.size,
+        data=data,
+        probe_json=json.dumps(probe.to_dict()),
+    )
+    db.add(m)
+    v.media_status = "uploaded"
+    v.likeness_consent = True
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=507,
+            detail={
+                "code": "STORAGE_FULL",
+                "message": "Server storage is full - delete some old media in the Video "
+                "Studio, then try the upload again.",
+            },
+        )
+    db.refresh(v)
+    return _video_out(v)
 
 
 @router.post("/videos/{video_id}/media/{media_id}/analyze", response_model=VideoAnalyzeOut)

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.20.0 - 2026-08-28
+
+**Video upload fixed for free-tier hosting** (fixes "Upload failed (500)"):
+
+- Root cause: Render's free tier kills any single HTTP request that
+  runs ~100 s; a 2-3 minute video on a typical SA uplink takes longer
+  than that to upload in one request, and the old endpoint also
+  buffered the whole file in server memory.
+- **Chunked upload**: the browser splits the video into ~5 MB chunks
+  (small, fast requests), the server streams them to a temp file, then
+  probes + stores the finished file. Live progress % in the UI.
+- New routes: `upload-init` → `chunk` (×N) → `complete`; 5 MB chunk
+  cap, 150 MB file cap, in-order enforcement, 30-min session expiry.
+- **Global error handler**: unhandled server errors now log the full
+  traceback to the service logs and return a short actionable message
+  to the UI instead of a bare 500; a full storage quota returns a clear
+  "delete old media" message.
+- 180 API tests passing (7 new), web build green, contract re-exported
+  (this deploy also carries 0.19.0 gap handling)
+
 ## 0.19.0 - 2026-08-26
 
 **Honest gap handling** (gaps become actions, never fabrications):

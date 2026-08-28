@@ -331,6 +331,23 @@ class VideoJobOut(BaseModel):
     error: str | None = None
 
 
+class UploadInitIn(BaseModel):
+    filename: str | None = Field(default=None, max_length=300)
+    content_type: str = Field(max_length=120)
+    size: int = Field(gt=0)
+    likeness_consent: bool = False
+
+
+class UploadInitOut(BaseModel):
+    upload_id: str
+    chunk_size: int
+
+
+class UploadChunkOut(BaseModel):
+    received_bytes: int
+    complete: bool
+
+
 class TrimRequest(BaseModel):
     start: float = Field(ge=0)
     end: float = Field(gt=0)

@@ -74,6 +74,7 @@ export default function VideoStudioPage() {
   // --- studio (server-side) state ---
   const [consent, setConsent] = useState(false);
   const [serverBusy, setServerBusy] = useState<string | null>(null);
+  const [uploadPct, setUploadPct] = useState(0);
   const [jobNote, setJobNote] = useState<string | null>(null);
   const [report, setReport] = useState<{ mediaId: string; report: VideoQualityReport } | null>(null);
   const [capText, setCapText] = useState("");
@@ -272,11 +273,14 @@ export default function VideoStudioPage() {
       return;
     }
     setServerBusy("upload");
+    setUploadPct(0);
     setError(null);
     setSavedNote(null);
     try {
       const vid = await ensureVideo();
-      const v = await api.uploadVideoMedia(vid, blob, filename, consent);
+      // Chunked upload: small fast requests so long videos survive the
+      // free-tier request timeout (single big uploads were failing with 500).
+      const v = await api.uploadVideoChunked(vid, blob, filename, consent, setUploadPct);
       setVideo(v);
       await refreshVideo();
       setReport(null);
@@ -287,6 +291,9 @@ export default function VideoStudioPage() {
       setServerBusy(null);
     }
   };
+
+  const uploadLabel = (fallback: string) =>
+    serverBusy === "upload" ? (uploadPct > 0 ? `Uploading… ${uploadPct}%` : "Uploading…") : fallback;
 
   const onFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -617,7 +624,7 @@ export default function VideoStudioPage() {
                     onClick={() => sendToStudio(lastTake, `take-${Math.round(previewSeconds)}s.webm`)}
                     disabled={serverBusy !== null}
                   >
-                    {serverBusy === "upload" ? "Uploading…" : "Send this take to the studio →"}
+                    {uploadLabel("Send this take to the studio →")}
                   </button>
                 )}
               </div>
@@ -648,7 +655,7 @@ export default function VideoStudioPage() {
 
             <div className="row" style={{ flexWrap: "wrap" }}>
               <label className="btn secondary" style={{ cursor: "pointer" }}>
-                {serverBusy === "upload" ? "Uploading…" : "Upload a video file…"}
+                {uploadLabel("Upload a video file…")}
                 <input type="file" accept="video/mp4,video/webm,video/quicktime,video/x-m4v" onChange={onFilePick} hidden disabled={serverBusy !== null || !consent} />
               </label>
               <span className="muted" style={{ fontSize: 12.5 }}>
@@ -967,7 +974,7 @@ export default function VideoStudioPage() {
                         onClick={() => sendToStudio(r.blob, `take-${Math.round(r.seconds)}s.webm`)}
                         disabled={serverBusy !== null}
                       >
-                        {serverBusy === "upload" ? "Uploading…" : "Send to studio →"}
+                        {uploadLabel("Send to studio →")}
                       </button>
                       <button className="btn secondary" style={{ color: "var(--red)" }} onClick={() => removeRecording(r.id)}>
                         Delete

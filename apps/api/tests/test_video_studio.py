@@ -338,3 +338,93 @@ def test_enhance_without_captions_fails(client, app_video, test_clip):
     )
     assert res.status_code == 409
     assert res.json()["detail"]["code"] == "NO_CAPTIONS"
+
+
+# --- chunked upload (free-tier friendly) ---------------------------------------
+
+def _chunk_init(client, video_id, data, consent=True, ct="video/webm", filename="take.webm"):
+    return client.post(
+        f"{API}/videos/{video_id}/upload-init",
+        json={
+            "filename": filename,
+            "content_type": ct,
+            "size": len(data),
+            "likeness_consent": consent,
+        },
+    )
+
+
+def _send_chunks(client, upload_id, data, chunk=5 * 1024 * 1024):
+    offset = 0
+    index = 0
+    while offset < len(data):
+        piece = data[offset:offset + chunk]
+        r = client.post(
+            f"{API}/uploads/{upload_id}/chunk?index={index}",
+            content=piece,
+        )
+        assert r.status_code == 200, r.text
+        offset += len(piece)
+        index += 1
+
+
+def test_chunked_upload_roundtrip(client, app_video, test_clip):
+    _, video_id, _ = app_video
+    init = _chunk_init(client, video_id, test_clip)
+    assert init.status_code == 201, init.text
+    uid = init.json()["upload_id"]
+    _send_chunks(client, uid, test_clip)
+    res = client.post(f"{API}/uploads/{uid}/complete")
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["media_status"] == "uploaded"
+    assert body["likeness_consent"] is True
+    assert len(body["media"]) == 1
+    assert body["media"][0]["kind"] == "original"
+    assert body["media"][0]["duration"] and 5 < body["media"][0]["duration"] < 8
+
+
+def test_chunked_upload_requires_likeness_consent(client, app_video, test_clip):
+    _, video_id, _ = app_video
+    init = _chunk_init(client, video_id, test_clip, consent=False)
+    assert init.status_code == 422
+    assert init.json()["detail"]["code"] == "LIKENESS_CONSENT_REQUIRED"
+
+
+def test_chunked_upload_rejects_bad_type(client, app_video, test_clip):
+    _, video_id, _ = app_video
+    init = _chunk_init(client, video_id, test_clip, ct="text/plain")
+    assert init.status_code == 415
+
+
+def test_chunked_upload_rejects_oversize(client, app_video, test_clip):
+    _, video_id, _ = app_video
+    init = client.post(
+        f"{API}/videos/{video_id}/upload-init",
+        json={"filename": "big.mp4", "content_type": "video/mp4",
+              "size": 200 * 1024 * 1024, "likeness_consent": True},
+    )
+    assert init.status_code == 413
+
+
+def test_chunked_upload_out_of_order_rejected(client, app_video, test_clip):
+    _, video_id, _ = app_video
+    uid = _chunk_init(client, video_id, test_clip).json()["upload_id"]
+    r = client.post(f"{API}/uploads/{uid}/chunk?index=1", content=test_clip[:1024])
+    assert r.status_code == 409
+    assert r.json()["detail"]["code"] == "CHUNK_OUT_OF_ORDER"
+
+
+def test_chunked_upload_incomplete_complete(client, app_video, test_clip):
+    _, video_id, _ = app_video
+    uid = _chunk_init(client, video_id, test_clip).json()["upload_id"]
+    # send only half the bytes
+    client.post(f"{API}/uploads/{uid}/chunk?index=0", content=test_clip[: len(test_clip) // 2])
+    r = client.post(f"{API}/uploads/{uid}/complete")
+    assert r.status_code == 409
+    assert r.json()["detail"]["code"] == "INCOMPLETE"
+
+
+def test_chunked_upload_unknown_session(client, app_video):
+    res = client.post(f"{API}/uploads/does-not-exist/complete")
+    assert res.status_code == 404

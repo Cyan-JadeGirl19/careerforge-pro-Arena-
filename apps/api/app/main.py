@@ -4,12 +4,14 @@ Run locally:
     uvicorn app.main:app --reload --port 8001
 Interactive docs: http://localhost:8001/docs
 """
+import logging
 import threading
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .api.v1 import (
     consents,
@@ -73,6 +75,24 @@ def create_app() -> FastAPI:
         version=APP_VERSION,
         lifespan=lifespan,
     )
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("careerforge")
+
+    @app.exception_handler(Exception)
+    async def _unhandled_exception_handler(request: Request, exc: Exception):
+        # Full traceback goes to the service logs (Render > Logs); the
+        # client gets a short, actionable message instead of a bare 500.
+        logger.exception("unhandled error on %s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": {
+                    "code": "INTERNAL_ERROR",
+                    "message": f"Server error ({type(exc).__name__}): {str(exc)[:160]}",
+                }
+            },
+        )
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
