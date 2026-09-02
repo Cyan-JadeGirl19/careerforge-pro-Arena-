@@ -879,16 +879,23 @@ def _store_upload_worker(job: jobs.Job, video_id: str, upload_id: str) -> None:
         v.media_status = "uploaded"
         v.likeness_consent = True
         try:
+            # Large INSERTs can hit Render Postgres' default statement
+            # timeout mid-write; lift it for this transaction only.
+            # (SQLite has no statement timeout - tests are unaffected.)
+            if db.bind.dialect.name == "postgresql":
+                db.execute(text("SET LOCAL statement_timeout = 0"))
             db.commit()
-        except Exception:
+        except Exception as exc:
             db.rollback()
             _upload_logger.exception(
-                "storing uploaded media failed (video %s) - possible storage quota",
+                "storing uploaded media failed (video %s) - real DB error above",
                 video_id,
             )
             raise RuntimeError(
-                "Server storage is full - delete some old media in the Video "
-                "Studio, then try the upload again."
+                "Could not store the video on the server "
+                f"({type(exc).__name__}: {str(exc)[:160]}). "
+                "Try uploading a shorter/smaller file, or delete old media "
+                "in the Video Studio and try again."
             )
         db.refresh(m)
         job.progress = 1.0

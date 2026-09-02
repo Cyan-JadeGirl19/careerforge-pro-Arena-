@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.23.0 - 2026-08-28
+
+**Video storage fix (real root cause)**:
+
+- Production diagnostics showed the database was NOT full (135 MB of
+  1 GB used) yet every video store attempt failed - the "storage is
+  full" message was a mislabel. The real failure: Render Postgres'
+  default statement timeout cancels the large-file INSERT mid-write.
+- The store step now lifts `statement_timeout` for its transaction
+  only (Postgres; SQLite/dev unaffected), and any future failure
+  surfaces the REAL database error to the UI instead of guessing.
+- Verified by full production smoke test: 13/13 steps green
+  (profile → consents → CV → 3 role masters → JD → application →
+  tailor → letter → video script → jobs → storage → erasure).
+
 ## 0.22.0 - 2026-08-28
 
 **Upload "stuck at 96%" fix** (visible progress + faster compression):
