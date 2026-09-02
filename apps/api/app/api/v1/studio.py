@@ -11,6 +11,7 @@ every artefact is stored against the video response for download.
 import json
 import logging
 import re
+import time
 import uuid
 from contextlib import nullcontext
 from pathlib import Path
@@ -802,6 +803,29 @@ def upload_complete(upload_id: str, db: Session = Depends(get_db)) -> VideoJobOu
 COMPRESS_THRESHOLD = 20 * 1024 * 1024  # files bigger than this get re-encoded
 _upload_logger = logging.getLogger("careerforge.upload")
 
+_TRANSIENT_DB_TOKENS = (
+    "name or service not known",
+    "failed to resolve host",
+    "temporary failure in name resolution",
+    "connection refused",
+    "connection reset",
+    "connection timed out",
+    "timed out",
+    "timeout",
+    "server closed the connection unexpectedly",
+    "could not connect",
+    "server lost",
+    "terminating connection",
+    "eof occurred",
+)
+
+
+def _is_transient_db_error(exc: Exception) -> bool:
+    """Network/infrastructure errors that a retry can fix (free-tier DB
+    wake-up, DNS flaps). Auth/quota errors are NOT transient."""
+    s = str(exc).lower()
+    return any(tok in s for tok in _TRANSIENT_DB_TOKENS)
+
 
 def _store_upload_worker(job: jobs.Job, video_id: str, upload_id: str) -> None:
     db = SessionLocal()
@@ -862,44 +886,62 @@ def _store_upload_worker(job: jobs.Job, video_id: str, upload_id: str) -> None:
 
         job.phase = "saving privately"
         job.progress = 0.8
-        m = VideoMedia(
-            id=str(uuid.uuid4()),
-            video_response_id=video_id,
-            kind="original",
-            filename=stored_name,
-            content_type=stored_ct,
-            size=len(data),
-            data=data,
-            probe_json=json.dumps(probe.to_dict()),
-        )
-        db.add(m)
-        v = db.get(VideoResponse, video_id)
-        if v is None:
-            raise RuntimeError("This video response no longer exists.")
-        v.media_status = "uploaded"
-        v.likeness_consent = True
-        try:
-            # Large INSERTs can hit Render Postgres' default statement
-            # timeout mid-write; lift it for this transaction only.
-            # (SQLite has no statement timeout - tests are unaffected.)
-            if db.bind.dialect.name == "postgresql":
-                db.execute(text("SET LOCAL statement_timeout = 0"))
-            db.commit()
-        except Exception as exc:
-            db.rollback()
+        media_id = str(uuid.uuid4())
+        last_err: Exception | None = None
+        for attempt in range(5):
+            db2 = SessionLocal()
+            try:
+                m = VideoMedia(
+                    id=media_id,
+                    video_response_id=video_id,
+                    kind="original",
+                    filename=stored_name,
+                    content_type=stored_ct,
+                    size=len(data),
+                    data=data,
+                    probe_json=json.dumps(probe.to_dict()),
+                )
+                db2.add(m)
+                v = db2.get(VideoResponse, video_id)
+                if v is None:
+                    raise RuntimeError("This video response no longer exists.")
+                v.media_status = "uploaded"
+                v.likeness_consent = True
+                # Large INSERTs can hit Render Postgres' default statement
+                # timeout mid-write; lift it for this transaction only.
+                # (SQLite has no statement timeout - tests are unaffected.)
+                if db2.bind.dialect.name == "postgresql":
+                    db2.execute(text("SET LOCAL statement_timeout = 0"))
+                db2.commit()
+                last_err = None
+                break
+            except Exception as exc:
+                db2.rollback()
+                last_err = exc
+                _upload_logger.warning(
+                    "store attempt %d failed for video %s: %s", attempt + 1, video_id, exc
+                )
+                if attempt < 4 and _is_transient_db_error(exc):
+                    # Free-tier Postgres sleeps; its internal hostname can
+                    # fail DNS resolution for a while after waking. The
+                    # file is safe in the upload session - just retry.
+                    job.progress = 0.8 + 0.02 * (attempt + 1)
+                    time.sleep(4 * (attempt + 1))
+                    continue
+                break
+            finally:
+                db2.close()
+        if last_err is not None:
             _upload_logger.exception(
-                "storing uploaded media failed (video %s) - real DB error above",
-                video_id,
+                "storing uploaded media failed after retries (video %s)", video_id
             )
             raise RuntimeError(
-                "Could not store the video on the server "
-                f"({type(exc).__name__}: {str(exc)[:160]}). "
-                "Try uploading a shorter/smaller file, or delete old media "
-                "in the Video Studio and try again."
+                f"Could not store the video on the server "
+                f"({type(last_err).__name__}: {str(last_err)[:140]}). "
+                "Please try the upload again in a minute."
             )
-        db.refresh(m)
         job.progress = 1.0
-        job.result = {"media_id": m.id, "compressed": compressed}
+        job.result = {"media_id": media_id, "compressed": compressed}
     finally:
         try:
             uploads.discard(upload_id)

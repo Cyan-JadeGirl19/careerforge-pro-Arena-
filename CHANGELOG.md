@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.24.0 - 2026-09-02
+
+**Video upload fixed for real** (live diagnostics found the true root
+cause):
+
+- A production test revealed the store failure was NOT storage quota
+  (DB at 135 MB of 1 GB) and not the statement timeout - it was
+  `failed to resolve host 'dpg-...-a'`: the free-tier Postgres sleeps,
+  and its internal Render hostname fails DNS resolution for a while
+  around wake-up. The long compress phase let the connection go stale
+  right before the INSERT.
+- The store step now **retries transient DB errors** (DNS flaps,
+  wake-up, connection resets) up to 5 times with backoff - the file
+  stays safe in the upload session while the database wakes.
+  Non-transient errors fail fast with the real message.
+- 0.3.13's fixes (statement_timeout lift, real-error surfacing) are
+  included in this deploy.
+- 182 API tests passing; live production test confirmed the failure
+  mode and the fix path.
+
 ## 0.23.0 - 2026-08-28
 
 **Video storage fix (real root cause)**:
